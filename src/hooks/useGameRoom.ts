@@ -95,6 +95,7 @@ export function useGameRoom() {
       setRoom(newRoom);
       setPlayerId(hostId);
       setError(null);
+      localPlayerRef.current = { id: hostId, name: hostName, is_host: true, is_ready: false, mode };
 
       const channel = subscribeToRoom(code, hostId);
 
