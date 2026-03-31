@@ -2,21 +2,19 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useGameRoom } from "@/hooks/useGameRoom";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 
 const CreateTable = () => {
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const { createRoom } = useGameRoom();
+  const { createRoom } = useGameRoomContext();
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
     if (!name.trim() || loading) return;
     setLoading(true);
-    const { room, playerId } = await createRoom(name.trim());
-    navigate("/waiting", {
-      state: { roomCode: room.code, playerId, playerName: name.trim(), isHost: true },
-    });
+    await createRoom(name.trim());
+    navigate("/waiting");
   };
 
   return (

@@ -1,39 +1,40 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useGameRoom } from "@/hooks/useGameRoom";
+import { useNavigate } from "react-router-dom";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 
 const Countdown = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { roomCode, playerId, playerName, isHost, mode } = (location.state as any) ?? {};
-  const { room, startGame, players } = useGameRoom();
-
+  const { room, startGame } = useGameRoomContext();
   const [count, setCount] = useState(3);
+
+  const me = room ? true : false;
+  const isHost = true; // countdown logic is the same for all
+
+  useEffect(() => {
+    if (!room) {
+      navigate("/", { replace: true });
+      return;
+    }
+  }, [room, navigate]);
 
   useEffect(() => {
     if (count <= 0) {
-      if (isHost) startGame();
-      navigate("/game", {
-        replace: true,
-        state: { roomCode, playerId, playerName, isHost, mode },
-      });
+      startGame();
+      navigate("/game", { replace: true });
       return;
     }
 
     const timer = setTimeout(() => setCount((c) => c - 1), 1000);
     return () => clearTimeout(timer);
-  }, [count, navigate, roomCode, playerId, playerName, isHost, mode, startGame]);
+  }, [count, navigate, startGame]);
 
-  // Also listen for game_update to start game for non-host
+  // Listen for playing state from broadcast
   useEffect(() => {
     if (room?.status === "playing") {
-      navigate("/game", {
-        replace: true,
-        state: { roomCode, playerId, playerName, isHost, mode },
-      });
+      navigate("/game", { replace: true });
     }
-  }, [room?.status, navigate, roomCode, playerId, playerName, isHost, mode]);
+  }, [room?.status, navigate]);
 
   return (
     <div className="screen-center">

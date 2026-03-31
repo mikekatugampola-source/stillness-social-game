@@ -2,22 +2,20 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useGameRoom } from "@/hooks/useGameRoom";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 
 const JoinTable = () => {
   const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const { joinRoom } = useGameRoom();
+  const { joinRoom } = useGameRoomContext();
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
     if (!code.trim() || !name.trim() || loading) return;
     setLoading(true);
-    const { playerId } = await joinRoom(code.trim(), name.trim());
-    navigate("/waiting", {
-      state: { roomCode: code.trim().toUpperCase(), playerId, playerName: name.trim(), isHost: false },
-    });
+    await joinRoom(code.trim(), name.trim());
+    navigate("/waiting");
   };
 
   return (

@@ -1,19 +1,27 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useMotionDetection } from "@/hooks/useMotionDetection";
-import { useGameRoom } from "@/hooks/useGameRoom";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 
 const ActiveGame = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { roomCode, playerId, playerName, isHost, mode } = (location.state as any) ?? {};
-  const { room, reportLoss, leaveRoom, players } = useGameRoom();
+  const { room, playerId, players, reportLoss } = useGameRoomContext();
 
   const [elapsed, setElapsed] = useState(0);
   const [gameActive, setGameActive] = useState(true);
   const startTimeRef = useRef(Date.now());
+
+  const me = players.find((p) => p.id === playerId);
+  const playerName = me?.name ?? "You";
+
+  useEffect(() => {
+    if (!room) {
+      navigate("/", { replace: true });
+      return;
+    }
+  }, [room, navigate]);
 
   // Timer
   useEffect(() => {
@@ -30,35 +38,21 @@ const ActiveGame = () => {
     reportLoss(playerId, playerName);
   }, [gameActive, reportLoss, playerId, playerName]);
 
-  const { isMonitoring, requestPermission, hasPermission } = useMotionDetection(
-    gameActive,
-    handleMotion
-  );
+  const { isMonitoring, requestPermission } = useMotionDetection(gameActive, handleMotion);
 
-  // Request permission on mount
   useEffect(() => {
     requestPermission();
   }, [requestPermission]);
 
-  // Listen for game finish (someone else lost)
+  // Listen for game finish
   useEffect(() => {
     if (room?.status === "finished") {
-      const survivalTime = elapsed;
       navigate("/result", {
         replace: true,
-        state: {
-          loserId: room.loser_id,
-          loserName: room.loser_name,
-          playerId,
-          playerName,
-          mode: room.mode ?? mode,
-          survivalTime,
-          roomCode,
-          isHost,
-        },
+        state: { survivalTime: elapsed },
       });
     }
-  }, [room?.status, navigate, room, elapsed, playerId, playerName, mode, roomCode, isHost]);
+  }, [room?.status, navigate, elapsed]);
 
   const handleEndGame = () => {
     setGameActive(false);
@@ -73,7 +67,6 @@ const ActiveGame = () => {
 
   return (
     <div className="screen-center relative">
-      {/* End Game */}
       <div className="absolute left-6 top-12">
         <Button variant="ghost" size="sm" onClick={handleEndGame}>
           End Game
@@ -86,15 +79,12 @@ const ActiveGame = () => {
         transition={{ duration: 0.8 }}
         className="flex flex-col items-center gap-6"
       >
-        {/* Timer */}
         <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
 
-        {/* Status */}
         <p className={`text-caption text-sm ${isMonitoring ? "animate-pulse-slow" : ""}`}>
           {isMonitoring ? "Monitoring motion" : "Calibrating..."}
         </p>
 
-        {/* Instruction */}
         <p className="text-caption mt-8 text-xs">Leave your phone face down</p>
       </motion.div>
     </div>

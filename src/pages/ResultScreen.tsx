@@ -1,15 +1,19 @@
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 import { getRandomPunishment, getRandomDrinkMessage } from "@/lib/punishments";
-import { useMemo } from "react";
 
 const ResultScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loserId, loserName, playerId, mode, survivalTime } = (location.state as any) ?? {};
+  const { survivalTime } = (location.state as any) ?? {};
+  const { room, playerId, leaveRoom } = useGameRoomContext();
 
-  const isMe = loserId === playerId;
+  const isMe = room?.loser_id === playerId;
+  const loserName = room?.loser_name ?? "Someone";
+  const mode = room?.mode ?? "classic";
 
   const punishment = useMemo(() => getRandomPunishment(), []);
   const drinkMsg = useMemo(() => getRandomDrinkMessage(), []);
@@ -21,6 +25,11 @@ const ResultScreen = () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  const handleHome = () => {
+    leaveRoom();
+    navigate("/");
+  };
+
   return (
     <div className="screen-center">
       <motion.div
@@ -29,7 +38,6 @@ const ResultScreen = () => {
         transition={{ duration: 0.6 }}
         className="flex flex-col items-center gap-6"
       >
-        {/* Title */}
         <h1 className="text-display">
           {isMe ? "You lost" : `${loserName} lost`}
         </h1>
@@ -37,15 +45,13 @@ const ResultScreen = () => {
           {isMe ? "You moved first" : "They moved first"}
         </p>
 
-        {/* Survival time */}
         <div className="mt-4 flex flex-col items-center gap-1">
           <p className="text-caption text-xs uppercase tracking-widest">Survival Time</p>
           <p className="text-3xl font-light text-foreground tracking-tight">
-            {formatTime(survivalTime)}
+            {formatTime(survivalTime ?? 0)}
           </p>
         </div>
 
-        {/* Mode-specific content */}
         {mode === "punishment" && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -69,16 +75,11 @@ const ResultScreen = () => {
           </motion.div>
         )}
 
-        {/* Actions */}
         <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
-          <Button
-            onClick={() => navigate("/")}
-            size="lg"
-            className="w-full"
-          >
+          <Button onClick={handleHome} size="lg" className="w-full">
             Play Again
           </Button>
-          <Button variant="ghost" onClick={() => navigate("/")} size="sm">
+          <Button variant="ghost" onClick={handleHome} size="sm">
             Back to Home
           </Button>
         </div>

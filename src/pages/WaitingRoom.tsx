@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useGameRoom } from "@/hooks/useGameRoom";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 import type { GameMode } from "@/lib/game-types";
 
 const modes: { id: GameMode; label: string; subtitle: string }[] = [
@@ -13,62 +13,39 @@ const modes: { id: GameMode; label: string; subtitle: string }[] = [
 
 const WaitingRoom = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { roomCode, playerId, playerName, isHost } = (location.state as any) ?? {};
-
   const {
     room,
     players,
+    playerId,
     toggleReady,
     updateMode,
     startCountdown,
     leaveRoom,
-    joinRoom,
-    createRoom,
-  } = useGameRoom();
+  } = useGameRoomContext();
 
-  const [initialized, setInitialized] = useState(false);
-
+  // Redirect if no room
   useEffect(() => {
-    if (!roomCode || initialized) return;
-    setInitialized(true);
-
-    if (isHost) {
-      createRoom(playerName).then(() => {});
-    } else {
-      joinRoom(roomCode, playerName).then(() => {});
-    }
-  }, [roomCode, initialized, isHost, playerName, createRoom, joinRoom]);
+    if (!room) navigate("/", { replace: true });
+  }, [room, navigate]);
 
   // Listen for countdown
   useEffect(() => {
     if (room?.status === "countdown") {
-      navigate("/countdown", {
-        state: {
-          roomCode: room.code,
-          playerId,
-          playerName,
-          isHost,
-          mode: room.mode,
-        },
-      });
+      navigate("/countdown", { replace: true });
     }
-  }, [room?.status, navigate, room?.code, playerId, playerName, isHost, room?.mode]);
+  }, [room?.status, navigate]);
+
+  if (!room) return null;
 
   const me = players.find((p) => p.id === playerId);
+  const isHost = me?.is_host ?? false;
   const canStart = isHost && players.length >= 2 && players.filter((p) => !p.is_host).every((p) => p.is_ready);
-  const currentMode = room?.mode ?? "classic";
+  const currentMode = room.mode;
 
   const handleLeave = () => {
     leaveRoom();
     navigate("/");
   };
-
-  const handleStart = () => {
-    startCountdown();
-  };
-
-  const displayCode = room?.code ?? roomCode ?? "----";
 
   return (
     <div className="screen-center">
@@ -81,7 +58,7 @@ const WaitingRoom = () => {
         {/* Room Code */}
         <div className="flex flex-col items-center gap-2">
           <p className="text-caption uppercase tracking-widest">Room Code</p>
-          <p className="text-4xl font-bold tracking-[0.3em] text-foreground">{displayCode}</p>
+          <p className="text-4xl font-bold tracking-[0.3em] text-foreground">{room.code}</p>
         </div>
 
         {/* Mode Selector (host only) */}
@@ -163,7 +140,7 @@ const WaitingRoom = () => {
 
           {isHost && (
             <Button
-              onClick={handleStart}
+              onClick={() => startCountdown()}
               disabled={!canStart}
               size="lg"
               className="w-full"
