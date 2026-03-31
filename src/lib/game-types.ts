@@ -1,20 +1,25 @@
 export type GameMode = "classic" | "punishment" | "drinks";
 
-export interface Player {
-  id: string;
-  name: string;
-  is_ready: boolean;
-  is_host: boolean;
+export type GameStatus = "waiting" | "countdown" | "active" | "finished";
+
+export interface RoomPlayer {
+  playerId: string;
+  displayName: string;
+  isHost: boolean;
+  isReady: boolean;
+  joinedAt: string;
 }
 
 export interface GameRoom {
-  id: string;
-  code: string;
-  status: "waiting" | "countdown" | "playing" | "finished";
+  roomCode: string;
+  hostId: string;
   mode: GameMode;
-  host_id: string;
-  loser_id: string | null;
-  loser_name: string | null;
-  started_at: string | null;
-  ended_at: string | null;
+  status: GameStatus;
+  players: RoomPlayer[];
+  loserId: string | null;
+  loserName: string | null;
+  countdownStartedAt: string | null;
+  endedAt: string | null;
 }
+
+export type Player = RoomPlayer;
