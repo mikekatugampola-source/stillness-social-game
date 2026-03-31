@@ -47,6 +47,10 @@ export function useGameRoom() {
                 is_ready: p.is_ready ?? false,
                 is_host: p.is_host ?? false,
               });
+              // Extract mode from host's presence data
+              if (p.is_host && p.mode) {
+                setRoom((prev) => prev ? { ...prev, mode: p.mode } : prev);
+              }
             }
           });
           setPlayers(playerList);
