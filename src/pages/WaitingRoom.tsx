@@ -39,7 +39,9 @@ const WaitingRoom = () => {
 
   const me = players.find((p) => p.id === playerId);
   const isHost = me?.is_host ?? false;
-  const canStart = isHost && players.length >= 2 && players.filter((p) => !p.is_host).every((p) => p.is_ready);
+  const nonHostPlayers = players.filter((p) => !p.is_host);
+  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.is_ready);
+  const canStart = isHost && players.length >= 2 && allReady;
   const currentMode = room.mode;
 
   const handleLeave = () => {
@@ -139,14 +141,26 @@ const WaitingRoom = () => {
           )}
 
           {isHost && (
-            <Button
-              onClick={() => startCountdown()}
-              disabled={!canStart}
-              size="lg"
-              className="w-full"
-            >
-              Start Game
-            </Button>
+            <>
+              <Button
+                onClick={() => startCountdown()}
+                disabled={!canStart}
+                size="lg"
+                className="w-full"
+              >
+                Start Game
+              </Button>
+              {!allReady && players.length >= 2 && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Waiting for all players to be ready
+                </p>
+              )}
+              {players.length < 2 && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Need at least 2 players to start
+                </p>
+              )}
+            </>
           )}
 
           <Button variant="ghost" onClick={handleLeave} size="sm">

@@ -47,6 +47,10 @@ export function useGameRoom() {
                 is_ready: p.is_ready ?? false,
                 is_host: p.is_host ?? false,
               });
+              // Extract mode from host's presence data
+              if (p.is_host && p.mode) {
+                setRoom((prev) => prev ? { ...prev, mode: p.mode } : prev);
+              }
             }
           });
           setPlayers(playerList);
@@ -98,6 +102,7 @@ export function useGameRoom() {
         name: hostName,
         is_ready: false,
         is_host: true,
+        mode,
       });
 
       return { room: newRoom, playerId: hostId };
@@ -155,7 +160,19 @@ export function useGameRoom() {
   const updateMode = useCallback(
     (mode: GameMode) => {
       setRoom((prev) => (prev ? { ...prev, mode } : prev));
+      // Re-track host presence with updated mode so all players get it via sync
       if (channelRef.current) {
+        const me = players.find((p) => p.id === playerId);
+        if (me) {
+          channelRef.current.track({
+            id: me.id,
+            name: me.name,
+            is_ready: me.is_ready,
+            is_host: me.is_host,
+            mode,
+          });
+        }
+        // Also broadcast for immediate update
         channelRef.current.send({
           type: "broadcast",
           event: "game_update",
@@ -163,7 +180,7 @@ export function useGameRoom() {
         });
       }
     },
-    []
+    [players, playerId]
   );
 
   const startCountdown = useCallback(() => {
