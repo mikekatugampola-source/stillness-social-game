@@ -11,8 +11,8 @@ const ResultScreen = () => {
   const { survivalTime } = (location.state as any) ?? {};
   const { room, playerId, leaveRoom } = useGameRoomContext();
 
-  const isMe = room?.loser_id === playerId;
-  const loserName = room?.loser_name ?? "Someone";
+  const isMe = room?.loserId === playerId;
+  const loserName = room?.loserName ?? "Someone";
   const mode = room?.mode ?? "classic";
 
   const punishment = useMemo(() => getRandomPunishment(), []);

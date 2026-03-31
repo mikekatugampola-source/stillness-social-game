@@ -23,12 +23,10 @@ const WaitingRoom = () => {
     leaveRoom,
   } = useGameRoomContext();
 
-  // Redirect if no room
   useEffect(() => {
     if (!room) navigate("/", { replace: true });
   }, [room, navigate]);
 
-  // Listen for countdown
   useEffect(() => {
     if (room?.status === "countdown") {
       navigate("/countdown", { replace: true });
@@ -37,10 +35,10 @@ const WaitingRoom = () => {
 
   if (!room) return null;
 
-  const me = players.find((p) => p.id === playerId);
-  const isHost = me?.is_host ?? false;
-  const nonHostPlayers = players.filter((p) => !p.is_host);
-  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.is_ready);
+  const me = players.find((p) => p.playerId === playerId);
+  const isHost = me?.isHost ?? false;
+  const nonHostPlayers = players.filter((p) => !p.isHost);
+  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.isReady);
   const canStart = isHost && players.length >= 2 && allReady;
   const currentMode = room.mode;
 
@@ -60,7 +58,7 @@ const WaitingRoom = () => {
         {/* Room Code */}
         <div className="flex flex-col items-center gap-2">
           <p className="text-caption uppercase tracking-widest">Room Code</p>
-          <p className="text-4xl font-bold tracking-[0.3em] text-foreground">{room.code}</p>
+          <p className="text-4xl font-bold tracking-[0.3em] text-foreground">{room.roomCode}</p>
         </div>
 
         {/* Mode Selector (host only) */}
@@ -98,7 +96,7 @@ const WaitingRoom = () => {
             <AnimatePresence>
               {players.map((player) => (
                 <motion.div
-                  key={player.id}
+                  key={player.playerId}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
@@ -106,9 +104,9 @@ const WaitingRoom = () => {
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-base font-medium text-foreground">
-                      {player.name}
+                      {player.displayName}
                     </span>
-                    {player.is_host && (
+                    {player.isHost && (
                       <span className="rounded-md bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                         Host
                       </span>
@@ -116,10 +114,10 @@ const WaitingRoom = () => {
                   </div>
                   <span
                     className={`text-xs font-medium ${
-                      player.is_ready || player.is_host ? "text-foreground" : "text-muted-foreground"
+                      player.isReady || player.isHost ? "text-foreground" : "text-muted-foreground"
                     }`}
                   >
-                    {player.is_host ? "Ready" : player.is_ready ? "Ready" : "Waiting"}
+                    {player.isHost ? "Ready" : player.isReady ? "Ready" : "Waiting"}
                   </span>
                 </motion.div>
               ))}
@@ -132,11 +130,11 @@ const WaitingRoom = () => {
           {!isHost && (
             <Button
               onClick={toggleReady}
-              variant={me?.is_ready ? "secondary" : "default"}
+              variant={me?.isReady ? "secondary" : "default"}
               size="lg"
               className="w-full"
             >
-              {me?.is_ready ? "Not Ready" : "Ready"}
+              {me?.isReady ? "Not Ready" : "Ready"}
             </Button>
           )}
 
