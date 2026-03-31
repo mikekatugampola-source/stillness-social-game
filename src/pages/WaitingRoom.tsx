@@ -39,7 +39,9 @@ const WaitingRoom = () => {
 
   const me = players.find((p) => p.id === playerId);
   const isHost = me?.is_host ?? false;
-  const canStart = isHost && players.length >= 2 && players.filter((p) => !p.is_host).every((p) => p.is_ready);
+  const nonHostPlayers = players.filter((p) => !p.is_host);
+  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.is_ready);
+  const canStart = isHost && players.length >= 2 && allReady;
   const currentMode = room.mode;
 
   const handleLeave = () => {
