@@ -238,6 +238,7 @@ export function useGameRoom() {
     setRoom(null);
     setPlayers([]);
     setPlayerId("");
+    localPlayerRef.current = { id: "", name: "", is_host: false, is_ready: false };
   }, [cleanup]);
 
   useEffect(() => {
