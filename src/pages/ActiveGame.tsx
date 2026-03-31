@@ -13,8 +13,8 @@ const ActiveGame = () => {
   const [gameActive, setGameActive] = useState(true);
   const startTimeRef = useRef(Date.now());
 
-  const me = players.find((p) => p.id === playerId);
-  const playerName = me?.name ?? "You";
+  const me = players.find((p) => p.playerId === playerId);
+  const playerName = me?.displayName ?? "You";
 
   useEffect(() => {
     if (!room) {

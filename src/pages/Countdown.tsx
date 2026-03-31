@@ -31,7 +31,7 @@ const Countdown = () => {
 
   // Listen for playing state from broadcast
   useEffect(() => {
-    if (room?.status === "playing") {
+    if (room?.status === "active") {
       navigate("/game", { replace: true });
     }
   }, [room?.status, navigate]);
