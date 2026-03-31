@@ -19,6 +19,10 @@ export function useGameRoom() {
   const [playerId, setPlayerId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
+  // Store local player data so actions don't depend on presence sync
+  const localPlayerRef = useRef<{ id: string; name: string; is_host: boolean; is_ready: boolean; mode?: GameMode }>({
+    id: "", name: "", is_host: false, is_ready: false,
+  });
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
@@ -91,6 +95,7 @@ export function useGameRoom() {
       setRoom(newRoom);
       setPlayerId(hostId);
       setError(null);
+      localPlayerRef.current = { id: hostId, name: hostName, is_host: true, is_ready: false, mode };
 
       const channel = subscribeToRoom(code, hostId);
 
@@ -115,6 +120,7 @@ export function useGameRoom() {
       const pid = generateId();
       setPlayerId(pid);
       setError(null);
+      localPlayerRef.current = { id: pid, name: playerName, is_host: false, is_ready: false };
 
       const joinedRoom: GameRoom = {
         id: generateId(),
@@ -147,31 +153,31 @@ export function useGameRoom() {
 
   const toggleReady = useCallback(async () => {
     if (!channelRef.current || !playerId) return;
-    const me = players.find((p) => p.id === playerId);
-    if (!me) return;
+    const local = localPlayerRef.current;
+    const newReady = !local.is_ready;
+    localPlayerRef.current = { ...local, is_ready: newReady };
     await channelRef.current.track({
-      id: me.id,
-      name: me.name,
-      is_ready: !me.is_ready,
-      is_host: me.is_host,
+      id: local.id,
+      name: local.name,
+      is_ready: newReady,
+      is_host: local.is_host,
     });
-  }, [playerId, players]);
+  }, [playerId]);
 
   const updateMode = useCallback(
     (mode: GameMode) => {
       setRoom((prev) => (prev ? { ...prev, mode } : prev));
-      // Re-track host presence with updated mode so all players get it via sync
       if (channelRef.current) {
-        const me = players.find((p) => p.id === playerId);
-        if (me) {
-          channelRef.current.track({
-            id: me.id,
-            name: me.name,
-            is_ready: me.is_ready,
-            is_host: me.is_host,
-            mode,
-          });
-        }
+        const local = localPlayerRef.current;
+        localPlayerRef.current = { ...local, mode };
+        // Re-track host presence with updated mode
+        channelRef.current.track({
+          id: local.id,
+          name: local.name,
+          is_ready: local.is_ready,
+          is_host: local.is_host,
+          mode,
+        });
         // Also broadcast for immediate update
         channelRef.current.send({
           type: "broadcast",
@@ -180,7 +186,7 @@ export function useGameRoom() {
         });
       }
     },
-    [players, playerId]
+    []
   );
 
   const startCountdown = useCallback(() => {
@@ -232,6 +238,7 @@ export function useGameRoom() {
     setRoom(null);
     setPlayers([]);
     setPlayerId("");
+    localPlayerRef.current = { id: "", name: "", is_host: false, is_ready: false };
   }, [cleanup]);
 
   useEffect(() => {
