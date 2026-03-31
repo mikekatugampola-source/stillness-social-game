@@ -141,14 +141,26 @@ const WaitingRoom = () => {
           )}
 
           {isHost && (
-            <Button
-              onClick={() => startCountdown()}
-              disabled={!canStart}
-              size="lg"
-              className="w-full"
-            >
-              Start Game
-            </Button>
+            <>
+              <Button
+                onClick={() => startCountdown()}
+                disabled={!canStart}
+                size="lg"
+                className="w-full"
+              >
+                Start Game
+              </Button>
+              {!allReady && players.length >= 2 && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Waiting for all players to be ready
+                </p>
+              )}
+              {players.length < 2 && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Need at least 2 players to start
+                </p>
+              )}
+            </>
           )}
 
           <Button variant="ghost" onClick={handleLeave} size="sm">
