@@ -1,0 +1,70 @@
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { useGameRoom } from "@/hooks/useGameRoom";
+
+const JoinTable = () => {
+  const navigate = useNavigate();
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const { joinRoom } = useGameRoom();
+  const [loading, setLoading] = useState(false);
+
+  const handleJoin = async () => {
+    if (!code.trim() || !name.trim() || loading) return;
+    setLoading(true);
+    const { playerId } = await joinRoom(code.trim(), name.trim());
+    navigate("/waiting", {
+      state: { roomCode: code.trim().toUpperCase(), playerId, playerName: name.trim(), isHost: false },
+    });
+  };
+
+  return (
+    <div className="screen-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex w-full max-w-xs flex-col items-center gap-6"
+      >
+        <h1 className="text-title">Join Table</h1>
+
+        <input
+          type="text"
+          placeholder="Room code"
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          maxLength={4}
+          autoFocus
+          className="w-full rounded-2xl border border-border bg-secondary px-5 py-4 text-center text-2xl font-semibold tracking-[0.3em] text-foreground placeholder:text-muted-foreground placeholder:tracking-normal placeholder:text-base placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+
+        <input
+          type="text"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={16}
+          className="w-full rounded-2xl border border-border bg-secondary px-5 py-4 text-center text-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+        />
+
+        <Button
+          onClick={handleJoin}
+          disabled={!code.trim() || !name.trim() || loading}
+          size="lg"
+          className="w-full"
+        >
+          {loading ? "Joining..." : "Join"}
+        </Button>
+
+        <Button variant="ghost" onClick={() => navigate("/")} size="sm">
+          Back
+        </Button>
+      </motion.div>
+    </div>
+  );
+};
+
+export default JoinTable;
