@@ -102,6 +102,7 @@ export function useGameRoom() {
         name: hostName,
         is_ready: false,
         is_host: true,
+        mode,
       });
 
       return { room: newRoom, playerId: hostId };
