@@ -153,15 +153,16 @@ export function useGameRoom() {
 
   const toggleReady = useCallback(async () => {
     if (!channelRef.current || !playerId) return;
-    const me = players.find((p) => p.id === playerId);
-    if (!me) return;
+    const local = localPlayerRef.current;
+    const newReady = !local.is_ready;
+    localPlayerRef.current = { ...local, is_ready: newReady };
     await channelRef.current.track({
-      id: me.id,
-      name: me.name,
-      is_ready: !me.is_ready,
-      is_host: me.is_host,
+      id: local.id,
+      name: local.name,
+      is_ready: newReady,
+      is_host: local.is_host,
     });
-  }, [playerId, players]);
+  }, [playerId]);
 
   const updateMode = useCallback(
     (mode: GameMode) => {
