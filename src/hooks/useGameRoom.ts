@@ -19,6 +19,10 @@ export function useGameRoom() {
   const [playerId, setPlayerId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
+  // Store local player data so actions don't depend on presence sync
+  const localPlayerRef = useRef<{ id: string; name: string; is_host: boolean; is_ready: boolean; mode?: GameMode }>({
+    id: "", name: "", is_host: false, is_ready: false,
+  });
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
