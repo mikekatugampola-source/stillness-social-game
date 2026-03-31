@@ -120,6 +120,7 @@ export function useGameRoom() {
       const pid = generateId();
       setPlayerId(pid);
       setError(null);
+      localPlayerRef.current = { id: pid, name: playerName, is_host: false, is_ready: false };
 
       const joinedRoom: GameRoom = {
         id: generateId(),
