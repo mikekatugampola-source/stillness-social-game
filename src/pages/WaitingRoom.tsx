@@ -13,15 +13,7 @@ const modes: { id: GameMode; label: string; subtitle: string }[] = [
 
 const WaitingRoom = () => {
   const navigate = useNavigate();
-  const {
-    room,
-    players,
-    playerId,
-    toggleReady,
-    updateMode,
-    startCountdown,
-    leaveRoom,
-  } = useGameRoomContext();
+  const { room, playerId, toggleReady, updateMode, startCountdown, leaveRoom } = useGameRoomContext();
 
   useEffect(() => {
     if (!room) navigate("/", { replace: true });
@@ -35,11 +27,10 @@ const WaitingRoom = () => {
 
   if (!room) return null;
 
-  const me = players.find((p) => p.playerId === playerId);
-  const isHost = me?.isHost ?? false;
-  const nonHostPlayers = players.filter((p) => !p.isHost);
-  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.isReady);
-  const canStart = isHost && players.length >= 2 && allReady;
+  const players = room.players;
+  const me = players.find((player) => player.playerId === playerId);
+  const isHost = me?.isHost ?? room.hostId === playerId;
+  const canStart = players.length >= 2 && players.every((player) => player.isReady);
   const currentMode = room.mode;
 
   const handleLeave = () => {
@@ -55,13 +46,11 @@ const WaitingRoom = () => {
         transition={{ duration: 0.5 }}
         className="flex w-full max-w-sm flex-col items-center gap-8"
       >
-        {/* Room Code */}
         <div className="flex flex-col items-center gap-2">
           <p className="text-caption uppercase tracking-widest">Room Code</p>
           <p className="text-4xl font-bold tracking-[0.3em] text-foreground">{room.roomCode}</p>
         </div>
 
-        {/* Mode Selector (host only) */}
         {isHost && (
           <div className="flex w-full gap-2">
             {modes.map((mode) => (
@@ -81,17 +70,15 @@ const WaitingRoom = () => {
           </div>
         )}
 
-        {/* Mode display (non-host) */}
         {!isHost && (
           <div className="glass-card w-full text-center">
             <p className="text-caption">Mode</p>
-            <p className="mt-1 text-lg font-semibold text-foreground capitalize">{currentMode}</p>
+            <p className="mt-1 text-lg font-semibold capitalize text-foreground">{currentMode}</p>
           </div>
         )}
 
-        {/* Players */}
         <div className="w-full">
-          <p className="text-caption mb-3">Players ({players.length})</p>
+          <p className="mb-3 text-caption">Players ({players.length})</p>
           <div className="flex flex-col gap-2">
             <AnimatePresence>
               {players.map((player) => (
@@ -103,21 +90,19 @@ const WaitingRoom = () => {
                   className="flex items-center justify-between rounded-xl border border-border bg-secondary px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-base font-medium text-foreground">
-                      {player.displayName}
-                    </span>
+                    <span className="text-base font-medium text-foreground">{player.displayName}</span>
                     {player.isHost && (
-                      <span className="rounded-md bg-foreground/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                      <span className="rounded-md bg-foreground/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                         Host
                       </span>
                     )}
                   </div>
                   <span
                     className={`text-xs font-medium ${
-                      player.isReady || player.isHost ? "text-foreground" : "text-muted-foreground"
+                      player.isReady ? "text-foreground" : "text-muted-foreground"
                     }`}
                   >
-                    {player.isHost ? "Ready" : player.isReady ? "Ready" : "Waiting"}
+                    {player.isReady ? "Ready" : "Waiting"}
                   </span>
                 </motion.div>
               ))}
@@ -125,7 +110,6 @@ const WaitingRoom = () => {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex w-full flex-col gap-3">
           {!isHost && (
             <Button
@@ -134,28 +118,25 @@ const WaitingRoom = () => {
               size="lg"
               className="w-full"
             >
-              {me?.isReady ? "Not Ready" : "Ready"}
+              {me?.isReady ? "Unready" : "Ready"}
             </Button>
           )}
 
           {isHost && (
             <>
               <Button
-                onClick={() => startCountdown()}
+                onClick={() => {
+                  void startCountdown();
+                }}
                 disabled={!canStart}
                 size="lg"
                 className="w-full"
               >
                 Start Game
               </Button>
-              {!allReady && players.length >= 2 && (
-                <p className="text-xs text-muted-foreground text-center">
+              {!canStart && (
+                <p className="text-center text-xs text-muted-foreground">
                   Waiting for all players to be ready
-                </p>
-              )}
-              {players.length < 2 && (
-                <p className="text-xs text-muted-foreground text-center">
-                  Need at least 2 players to start
                 </p>
               )}
             </>
@@ -165,6 +146,20 @@ const WaitingRoom = () => {
             Leave
           </Button>
         </div>
+
+        <details
+          className="w-full rounded-xl border border-border/60 bg-secondary/60 p-3 text-left text-[10px] text-muted-foreground"
+          aria-label="Room debug info"
+        >
+          <summary className="cursor-pointer select-none text-caption tracking-[0.2em]">Debug</summary>
+          <div className="mt-3 space-y-2 break-all">
+            <p>roomCode: {room.roomCode}</p>
+            <p>playerCount: {room.players.length}</p>
+            <p>mode: {room.mode}</p>
+            <p>hostId: {room.hostId}</p>
+            <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(room.players, null, 2)}</pre>
+          </div>
+        </details>
       </motion.div>
     </div>
   );

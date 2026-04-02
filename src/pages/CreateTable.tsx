@@ -11,10 +11,18 @@ const CreateTable = () => {
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
-    if (!name.trim() || loading) return;
+    const displayName = name.trim();
+    if (!displayName || loading) return;
+
     setLoading(true);
-    await createRoom(name.trim());
-    navigate("/waiting");
+    try {
+      const result = await createRoom(displayName);
+      if (result) {
+        navigate("/waiting");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,12 +46,7 @@ const CreateTable = () => {
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
         />
 
-        <Button
-          onClick={handleCreate}
-          disabled={!name.trim() || loading}
-          size="lg"
-          className="w-full"
-        >
+        <Button onClick={handleCreate} disabled={!name.trim() || loading} size="lg" className="w-full">
           {loading ? "Creating..." : "Create"}
         </Button>
 

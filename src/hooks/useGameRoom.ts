@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { GameMode, GameRoom, GameStatus, RoomPlayer } from "@/lib/game-types";
+import type { GameMode, GameRoom, RoomPlayer } from "@/lib/game-types";
 
 type PresenceMeta = {
   playerId?: string;
@@ -8,19 +8,22 @@ type PresenceMeta = {
   isHost?: boolean;
   isReady?: boolean;
   joinedAt?: string;
-  hostId?: string;
-  mode?: GameMode;
-  status?: GameStatus;
   id?: string;
   name?: string;
   is_host?: boolean;
   is_ready?: boolean;
 };
 
+type RoomBroadcastEvent = "room_state" | "room_sync_request" | "game_start" | "game_active";
+type RoomChannel = ReturnType<typeof supabase.channel>;
+
+const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
 function generateCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
-  for (let i = 0; i < 4; i += 1) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let index = 0; index < 4; index += 1) {
+    code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+  }
   return code;
 }
 
@@ -37,8 +40,7 @@ function normalizeRoomCode(code: string): string {
 }
 
 function parseBool(value: unknown, fallback = false): boolean {
-  if (typeof value === "boolean") return value;
-  return fallback;
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function parsePresencePlayer(meta: PresenceMeta): RoomPlayer | null {
@@ -54,19 +56,117 @@ function parsePresencePlayer(meta: PresenceMeta): RoomPlayer | null {
   };
 }
 
+function buildPresencePayload(player: RoomPlayer): PresenceMeta {
+  return {
+    playerId: player.playerId,
+    displayName: player.displayName,
+    isHost: player.isHost,
+    isReady: player.isReady,
+    joinedAt: player.joinedAt,
+  };
+}
+
+function sortPlayers(players: RoomPlayer[]): RoomPlayer[] {
+  return [...players].sort((first, second) => first.joinedAt.localeCompare(second.joinedAt));
+}
+
+function dedupePlayers(players: RoomPlayer[]): RoomPlayer[] {
+  const playersById = new Map<string, RoomPlayer>();
+
+  players.forEach((player) => {
+    playersById.set(player.playerId, player);
+  });
+
+  return sortPlayers(Array.from(playersById.values()));
+}
+
+function normalizeRoom(nextRoom: GameRoom): GameRoom {
+  const players = dedupePlayers(nextRoom.players);
+  const hostId = nextRoom.hostId || players.find((player) => player.isHost)?.playerId || "";
+
+  return {
+    ...nextRoom,
+    hostId,
+    players: players.map((player) => ({
+      ...player,
+      isHost: hostId ? player.playerId === hostId : player.isHost,
+    })),
+    loserId: nextRoom.loserId ?? null,
+    loserName: nextRoom.loserName ?? null,
+    countdownStartedAt: nextRoom.countdownStartedAt ?? null,
+    endedAt: nextRoom.endedAt ?? null,
+  };
+}
+
+function createRoomState(
+  roomCode: string,
+  hostId: string,
+  players: RoomPlayer[],
+  mode: GameMode = "classic"
+): GameRoom {
+  return normalizeRoom({
+    roomCode,
+    hostId,
+    mode,
+    status: "waiting",
+    players,
+    loserId: null,
+    loserName: null,
+    countdownStartedAt: null,
+    endedAt: null,
+  });
+}
+
+function mergeRoom(
+  currentRoom: GameRoom | null,
+  incoming: Partial<GameRoom> & { roomCode?: string }
+): GameRoom | null {
+  if (!currentRoom && !incoming.roomCode) return null;
+
+  const baseRoom =
+    currentRoom ??
+    createRoomState(
+      incoming.roomCode ?? "",
+      incoming.hostId ?? "",
+      incoming.players ?? [],
+      incoming.mode ?? "classic"
+    );
+
+  return normalizeRoom({
+    ...baseRoom,
+    ...incoming,
+    players: incoming.players ?? baseRoom.players,
+  });
+}
+
 export function useGameRoom() {
   const [room, setRoom] = useState<GameRoom | null>(null);
-  const [playerId, setPlayerId] = useState<string>("");
+  const [playerId, setPlayerId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<RoomChannel | null>(null);
   const roomRef = useRef<GameRoom | null>(null);
   const localPlayerRef = useRef<RoomPlayer | null>(null);
 
-  const setRoomState = useCallback((nextRoom: GameRoom | null) => {
-    roomRef.current = nextRoom;
-    setRoom(nextRoom);
+  const syncLocalPlayerFromRoom = useCallback((nextRoom: GameRoom | null) => {
+    const currentLocalPlayer = localPlayerRef.current;
+    if (!nextRoom || !currentLocalPlayer) return;
+
+    const syncedPlayer = nextRoom.players.find((player) => player.playerId === currentLocalPlayer.playerId);
+    if (syncedPlayer) {
+      localPlayerRef.current = syncedPlayer;
+    }
   }, []);
+
+  const setRoomState = useCallback(
+    (nextRoom: GameRoom | null) => {
+      const normalizedRoom = nextRoom ? normalizeRoom(nextRoom) : null;
+      roomRef.current = normalizedRoom;
+      setRoom(normalizedRoom);
+      syncLocalPlayerFromRoom(normalizedRoom);
+    },
+    [syncLocalPlayerFromRoom]
+  );
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
@@ -75,355 +175,322 @@ export function useGameRoom() {
     }
   }, []);
 
-  const toPresencePayload = useCallback((roomState: GameRoom, player: RoomPlayer) => {
-    return {
-      playerId: player.playerId,
-      displayName: player.displayName,
-      isHost: player.isHost,
-      isReady: player.isReady,
-      joinedAt: player.joinedAt,
-      hostId: roomState.hostId,
-      mode: roomState.mode,
-      status: roomState.status,
-    };
-  }, []);
+  const publishRoomState = useCallback(
+    async (channel: RoomChannel, nextRoom: GameRoom, event: RoomBroadcastEvent = "room_state") => {
+      await channel.send({
+        type: "broadcast",
+        event,
+        payload: normalizeRoom(nextRoom),
+      });
+    },
+    []
+  );
 
-  const applyPresenceSync = useCallback((presenceState: Record<string, PresenceMeta[]>) => {
-    const currentRoom = roomRef.current;
-    if (!currentRoom) return;
+  const applyPresenceSync = useCallback(
+    (presenceState: Record<string, PresenceMeta[]>) => {
+      const currentRoom = roomRef.current;
+      if (!currentRoom) return null;
 
-    const allPresences = Object.values(presenceState).flatMap((entries) => entries as PresenceMeta[]);
-    const playersMap = new Map<string, RoomPlayer>();
-    let hostMeta: PresenceMeta | null = null;
-
-    allPresences.forEach((meta) => {
-      const player = parsePresencePlayer(meta);
-      if (!player) return;
-
-      playersMap.set(player.playerId, player);
-      if (player.isHost) {
-        hostMeta = meta;
-      }
-    });
-
-    const fallbackLocalPlayer = localPlayerRef.current;
-    const parsedPlayers = Array.from(playersMap.values()).sort((a, b) =>
-      a.joinedAt.localeCompare(b.joinedAt)
-    );
-
-    const nextPlayers =
-      parsedPlayers.length > 0
-        ? parsedPlayers
-        : fallbackLocalPlayer
-          ? [fallbackLocalPlayer]
-          : currentRoom.players;
-
-    const hostIdFromPresence = hostMeta?.hostId ?? hostMeta?.playerId ?? hostMeta?.id;
-    const hostIdFromPlayers = nextPlayers.find((player) => player.isHost)?.playerId;
-    const nextHostId = hostIdFromPresence ?? currentRoom.hostId ?? hostIdFromPlayers ?? "";
-
-    const normalizedPlayers = nextPlayers.map((player) => ({
-      ...player,
-      isHost: player.playerId === nextHostId,
-    }));
-
-    const nextRoom: GameRoom = {
-      ...currentRoom,
-      hostId: nextHostId,
-      mode: hostMeta?.mode ?? currentRoom.mode,
-      status: hostMeta?.status ?? currentRoom.status,
-      players: normalizedPlayers,
-    };
-
-    setRoomState(nextRoom);
-  }, [setRoomState]);
-
-  const subscribeToRoom = useCallback(async (roomCode: string) => {
-    cleanup();
-
-    return await new Promise<ReturnType<typeof supabase.channel> | null>((resolve) => {
-      let resolved = false;
-      const resolveOnce = (value: ReturnType<typeof supabase.channel> | null) => {
-        if (resolved) return;
-        resolved = true;
-        resolve(value);
-      };
+      const parsedPlayers = Object.values(presenceState)
+        .flatMap((entries) => entries)
+        .map(parsePresencePlayer)
+        .filter((player): player is RoomPlayer => Boolean(player));
 
       const localPlayer = localPlayerRef.current;
-      if (!localPlayer) {
-        resolveOnce(null);
-        return;
-      }
-
-      const channel = supabase.channel(`room:${roomCode}`, {
-        config: { presence: { key: localPlayer.playerId } },
+      const nextRoom = normalizeRoom({
+        ...currentRoom,
+        players: dedupePlayers([
+          ...(localPlayer ? [localPlayer] : []),
+          ...parsedPlayers,
+        ]),
       });
 
-      channel
-        .on("presence", { event: "sync" }, () => {
-          applyPresenceSync(channel.presenceState() as Record<string, PresenceMeta[]>);
-        })
-        .on("broadcast", { event: "room_state" }, ({ payload }) => {
-          const currentRoom = roomRef.current;
-          if (!currentRoom) return;
+      setRoomState(nextRoom);
+      return nextRoom;
+    },
+    [setRoomState]
+  );
 
-          const nextRoom: GameRoom = {
-            ...currentRoom,
-            ...(payload as Partial<GameRoom>),
-          };
-          setRoomState(nextRoom);
-        })
-        .on("broadcast", { event: "game_start" }, ({ payload }) => {
-          const currentRoom = roomRef.current;
-          if (!currentRoom) return;
+  const subscribeToRoom = useCallback(
+    async (roomCode: string) => {
+      cleanup();
 
-          const nextRoom: GameRoom = {
-            ...currentRoom,
-            ...(payload as Partial<GameRoom>),
-            status: "countdown",
-          };
-          setRoomState(nextRoom);
-        })
-        .on("broadcast", { event: "game_active" }, ({ payload }) => {
-          const currentRoom = roomRef.current;
-          if (!currentRoom) return;
+      return await new Promise<RoomChannel | null>((resolve) => {
+        let resolved = false;
 
-          const nextRoom: GameRoom = {
-            ...currentRoom,
-            ...(payload as Partial<GameRoom>),
-            status: "active",
-          };
-          setRoomState(nextRoom);
-        })
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
-            const currentRoom = roomRef.current;
-            const currentPlayer = localPlayerRef.current;
+        const resolveOnce = (value: RoomChannel | null) => {
+          if (resolved) return;
+          resolved = true;
+          resolve(value);
+        };
 
-            if (currentRoom && currentPlayer) {
-              await channel.track(toPresencePayload(currentRoom, currentPlayer));
-            }
-            resolveOnce(channel);
-            return;
-          }
+        const localPlayer = localPlayerRef.current;
+        if (!localPlayer) {
+          resolveOnce(null);
+          return;
+        }
 
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            setError("Room connection failed");
-            resolveOnce(null);
-          }
+        const channel = supabase.channel(`room:${roomCode}`, {
+          config: {
+            presence: { key: localPlayer.playerId },
+          },
         });
 
-      channelRef.current = channel;
-    });
-  }, [applyPresenceSync, cleanup, setRoomState, toPresencePayload]);
+        channel
+          .on("presence", { event: "sync" }, async () => {
+            const syncedRoom = applyPresenceSync(
+              channel.presenceState() as Record<string, PresenceMeta[]>
+            );
 
-  const createRoom = useCallback(async (hostName: string, mode: GameMode = "classic") => {
-    const hostPlayer: RoomPlayer = {
-      playerId: generateId(),
-      displayName: hostName,
-      isHost: true,
-      isReady: true,
-      joinedAt: nowIso(),
-    };
+            if (syncedRoom && localPlayerRef.current?.isHost) {
+              await publishRoomState(channel, syncedRoom);
+            }
+          })
+          .on("broadcast", { event: "room_sync_request" }, async () => {
+            if (!localPlayerRef.current?.isHost || !roomRef.current) return;
+            await publishRoomState(channel, roomRef.current);
+          })
+          .on("broadcast", { event: "room_state" }, ({ payload }) => {
+            const mergedRoom = mergeRoom(roomRef.current, payload as Partial<GameRoom>);
+            if (mergedRoom) {
+              setRoomState(mergedRoom);
+            }
+          })
+          .on("broadcast", { event: "game_start" }, ({ payload }) => {
+            const mergedRoom = mergeRoom(roomRef.current, {
+              ...(payload as Partial<GameRoom>),
+              status: "countdown",
+            });
 
-    const newRoom: GameRoom = {
-      roomCode: generateCode(),
-      hostId: hostPlayer.playerId,
-      mode,
-      status: "waiting",
-      players: [hostPlayer],
-      loserId: null,
-      loserName: null,
-      countdownStartedAt: null,
-      endedAt: null,
-    };
+            if (mergedRoom) {
+              setRoomState(mergedRoom);
+            }
+          })
+          .on("broadcast", { event: "game_active" }, ({ payload }) => {
+            const mergedRoom = mergeRoom(roomRef.current, {
+              ...(payload as Partial<GameRoom>),
+              status: "active",
+            });
 
-    localPlayerRef.current = hostPlayer;
-    setPlayerId(hostPlayer.playerId);
-    setError(null);
-    setRoomState(newRoom);
+            if (mergedRoom) {
+              setRoomState(mergedRoom);
+            }
+          })
+          .subscribe(async (status) => {
+            if (status === "SUBSCRIBED") {
+              const currentPlayer = localPlayerRef.current;
+              if (currentPlayer) {
+                await channel.track(buildPresencePayload(currentPlayer));
+              }
 
-    const channel = await subscribeToRoom(newRoom.roomCode);
-    if (!channel) return null;
+              const syncedRoom = applyPresenceSync(
+                channel.presenceState() as Record<string, PresenceMeta[]>
+              );
 
-    await channel.send({
-      type: "broadcast",
-      event: "room_state",
-      payload: {
-        hostId: newRoom.hostId,
-        mode: newRoom.mode,
-        status: newRoom.status,
-      },
-    });
+              if (currentPlayer?.isHost && syncedRoom) {
+                await publishRoomState(channel, syncedRoom);
+              }
 
-    return { room: newRoom, playerId: hostPlayer.playerId };
-  }, [setRoomState, subscribeToRoom]);
+              if (currentPlayer && !currentPlayer.isHost) {
+                await channel.send({
+                  type: "broadcast",
+                  event: "room_sync_request",
+                  payload: { playerId: currentPlayer.playerId },
+                });
+              }
 
-  const joinRoom = useCallback(async (code: string, displayName: string) => {
-    const normalizedCode = normalizeRoomCode(code);
-    const joinedPlayer: RoomPlayer = {
-      playerId: generateId(),
-      displayName,
-      isHost: false,
-      isReady: false,
-      joinedAt: nowIso(),
-    };
+              resolveOnce(channel);
+              return;
+            }
 
-    const joinedRoom: GameRoom = {
-      roomCode: normalizedCode,
-      hostId: "",
-      mode: "classic",
-      status: "waiting",
-      players: [joinedPlayer],
-      loserId: null,
-      loserName: null,
-      countdownStartedAt: null,
-      endedAt: null,
-    };
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              setError("Room connection failed");
+              resolveOnce(null);
+            }
+          });
 
-    localPlayerRef.current = joinedPlayer;
-    setPlayerId(joinedPlayer.playerId);
-    setError(null);
-    setRoomState(joinedRoom);
+        channelRef.current = channel;
+      });
+    },
+    [applyPresenceSync, cleanup, publishRoomState, setRoomState]
+  );
 
-    const channel = await subscribeToRoom(normalizedCode);
-    if (!channel) return null;
+  const createRoom = useCallback(
+    async (hostName: string, mode: GameMode = "classic") => {
+      const hostPlayer: RoomPlayer = {
+        playerId: generateId(),
+        displayName: hostName,
+        isHost: true,
+        isReady: true,
+        joinedAt: nowIso(),
+      };
 
-    return { playerId: joinedPlayer.playerId };
-  }, [setRoomState, subscribeToRoom]);
+      const nextRoom = createRoomState(generateCode(), hostPlayer.playerId, [hostPlayer], mode);
+
+      localPlayerRef.current = hostPlayer;
+      setPlayerId(hostPlayer.playerId);
+      setError(null);
+      setRoomState(nextRoom);
+
+      const channel = await subscribeToRoom(nextRoom.roomCode);
+      if (!channel) return null;
+
+      await publishRoomState(channel, nextRoom);
+
+      return {
+        room: roomRef.current ?? nextRoom,
+        playerId: hostPlayer.playerId,
+      };
+    },
+    [publishRoomState, setRoomState, subscribeToRoom]
+  );
+
+  const joinRoom = useCallback(
+    async (code: string, displayName: string) => {
+      const joinedPlayer: RoomPlayer = {
+        playerId: generateId(),
+        displayName,
+        isHost: false,
+        isReady: false,
+        joinedAt: nowIso(),
+      };
+
+      const normalizedCode = normalizeRoomCode(code);
+      const nextRoom = createRoomState(normalizedCode, "", [joinedPlayer]);
+
+      localPlayerRef.current = joinedPlayer;
+      setPlayerId(joinedPlayer.playerId);
+      setError(null);
+      setRoomState(nextRoom);
+
+      const channel = await subscribeToRoom(normalizedCode);
+      if (!channel) return null;
+
+      return {
+        room: roomRef.current ?? nextRoom,
+        playerId: joinedPlayer.playerId,
+      };
+    },
+    [setRoomState, subscribeToRoom]
+  );
 
   const toggleReady = useCallback(async () => {
     const channel = channelRef.current;
     const currentRoom = roomRef.current;
     const localPlayer = localPlayerRef.current;
+
     if (!channel || !currentRoom || !localPlayer) return;
 
     const updatedPlayer: RoomPlayer = {
       ...localPlayer,
       isReady: !localPlayer.isReady,
     };
+
     localPlayerRef.current = updatedPlayer;
 
-    const nextPlayers = currentRoom.players.some((player) => player.playerId === updatedPlayer.playerId)
-      ? currentRoom.players.map((player) =>
-          player.playerId === updatedPlayer.playerId ? updatedPlayer : player
-        )
-      : [...currentRoom.players, updatedPlayer];
-
-    const nextRoom: GameRoom = {
+    const nextRoom = normalizeRoom({
       ...currentRoom,
-      players: nextPlayers,
-    };
-
-    setRoomState(nextRoom);
-    await channel.track(toPresencePayload(nextRoom, updatedPlayer));
-  }, [setRoomState, toPresencePayload]);
-
-  const updateMode = useCallback(async (mode: GameMode) => {
-    const channel = channelRef.current;
-    const currentRoom = roomRef.current;
-    const localPlayer = localPlayerRef.current;
-    if (!channel || !currentRoom || !localPlayer || !localPlayer.isHost) return;
-
-    const nextRoom: GameRoom = {
-      ...currentRoom,
-      mode,
-    };
-    setRoomState(nextRoom);
-
-    await channel.track(toPresencePayload(nextRoom, localPlayer));
-    await channel.send({
-      type: "broadcast",
-      event: "room_state",
-      payload: { mode },
+      players: dedupePlayers([
+        ...currentRoom.players.filter((player) => player.playerId !== updatedPlayer.playerId),
+        updatedPlayer,
+      ]),
     });
-  }, [setRoomState, toPresencePayload]);
 
-  const startCountdown = useCallback(() => {
+    setRoomState(nextRoom);
+    await channel.track(buildPresencePayload(updatedPlayer));
+  }, [setRoomState]);
+
+  const updateMode = useCallback(
+    async (mode: GameMode) => {
+      const channel = channelRef.current;
+      const currentRoom = roomRef.current;
+      const localPlayer = localPlayerRef.current;
+
+      if (!channel || !currentRoom || !localPlayer) return;
+      if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+      const nextRoom = normalizeRoom({
+        ...currentRoom,
+        mode,
+      });
+
+      setRoomState(nextRoom);
+      await publishRoomState(channel, nextRoom);
+    },
+    [publishRoomState, setRoomState]
+  );
+
+  const startCountdown = useCallback(async () => {
     const channel = channelRef.current;
     const currentRoom = roomRef.current;
     const localPlayer = localPlayerRef.current;
-    if (!channel || !currentRoom || !localPlayer || !localPlayer.isHost) return;
 
-    const update: Pick<GameRoom, "status" | "countdownStartedAt"> = {
+    if (!channel || !currentRoom || !localPlayer) return;
+    if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+    const canStart =
+      currentRoom.players.length >= 2 && currentRoom.players.every((player) => player.isReady);
+
+    if (!canStart) return;
+
+    const nextRoom = normalizeRoom({
+      ...currentRoom,
       status: "countdown",
       countdownStartedAt: nowIso(),
-    };
-
-    const nextRoom: GameRoom = {
-      ...currentRoom,
-      ...update,
-    };
+    });
 
     setRoomState(nextRoom);
-    channel.track(toPresencePayload(nextRoom, localPlayer));
-    channel.send({
-      type: "broadcast",
-      event: "game_start",
-      payload: update,
-    });
-  }, [setRoomState, toPresencePayload]);
+    await publishRoomState(channel, nextRoom, "game_start");
+  }, [publishRoomState, setRoomState]);
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback(async () => {
     const channel = channelRef.current;
     const currentRoom = roomRef.current;
     const localPlayer = localPlayerRef.current;
-    if (!channel || !currentRoom || !localPlayer || !localPlayer.isHost) return;
 
-    const update: Pick<GameRoom, "status"> = {
+    if (!channel || !currentRoom || !localPlayer) return;
+    if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+    const nextRoom = normalizeRoom({
+      ...currentRoom,
       status: "active",
-    };
-
-    const nextRoom: GameRoom = {
-      ...currentRoom,
-      ...update,
-    };
+    });
 
     setRoomState(nextRoom);
-    channel.track(toPresencePayload(nextRoom, localPlayer));
-    channel.send({
-      type: "broadcast",
-      event: "game_active",
-      payload: update,
-    });
-  }, [setRoomState, toPresencePayload]);
+    await publishRoomState(channel, nextRoom, "game_active");
+  }, [publishRoomState, setRoomState]);
 
-  const reportLoss = useCallback((loserId: string, loserName: string) => {
-    const channel = channelRef.current;
-    const currentRoom = roomRef.current;
-    if (!channel || !currentRoom) return;
+  const reportLoss = useCallback(
+    async (loserId: string, loserName: string) => {
+      const channel = channelRef.current;
+      const currentRoom = roomRef.current;
 
-    const update: Pick<GameRoom, "status" | "loserId" | "loserName" | "endedAt"> = {
-      status: "finished",
-      loserId,
-      loserName,
-      endedAt: nowIso(),
-    };
+      if (!channel || !currentRoom) return;
 
-    const nextRoom: GameRoom = {
-      ...currentRoom,
-      ...update,
-    };
+      const nextRoom = normalizeRoom({
+        ...currentRoom,
+        status: "finished",
+        loserId,
+        loserName,
+        endedAt: nowIso(),
+      });
 
-    setRoomState(nextRoom);
-    channel.send({
-      type: "broadcast",
-      event: "room_state",
-      payload: update,
-    });
-  }, [setRoomState]);
+      setRoomState(nextRoom);
+      await publishRoomState(channel, nextRoom);
+    },
+    [publishRoomState, setRoomState]
+  );
 
   const leaveRoom = useCallback(() => {
     cleanup();
     localPlayerRef.current = null;
-    setRoomState(null);
+    roomRef.current = null;
+    setRoom(null);
     setPlayerId("");
     setError(null);
-  }, [cleanup, setRoomState]);
-
-  useEffect(() => {
-    return cleanup;
   }, [cleanup]);
+
+  useEffect(() => cleanup, [cleanup]);
 
   return {
     room,

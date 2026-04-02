@@ -3,33 +3,44 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameRoomContext } from "@/context/GameRoomContext";
 
+function getRemainingCount(countdownStartedAt: string | null): number {
+  if (!countdownStartedAt) return 3;
+
+  const elapsedSeconds = Math.floor((Date.now() - new Date(countdownStartedAt).getTime()) / 1000);
+  return Math.max(0, 3 - elapsedSeconds);
+}
+
 const Countdown = () => {
   const navigate = useNavigate();
-  const { room, startGame } = useGameRoomContext();
-  const [count, setCount] = useState(3);
+  const { room, playerId, startGame } = useGameRoomContext();
+  const [count, setCount] = useState(() => getRemainingCount(room?.countdownStartedAt ?? null));
 
-  const me = room ? true : false;
-  const isHost = true; // countdown logic is the same for all
+  const isHost =
+    room?.players.some((player) => player.playerId === playerId && player.isHost) ?? false;
 
   useEffect(() => {
     if (!room) {
       navigate("/", { replace: true });
-      return;
     }
   }, [room, navigate]);
 
   useEffect(() => {
-    if (count <= 0) {
-      startGame();
-      navigate("/game", { replace: true });
-      return;
-    }
+    if (room?.status !== "countdown") return;
 
-    const timer = setTimeout(() => setCount((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [count, navigate, startGame]);
+    const tick = () => {
+      setCount(getRemainingCount(room.countdownStartedAt));
+    };
 
-  // Listen for playing state from broadcast
+    tick();
+    const timer = window.setInterval(tick, 100);
+    return () => window.clearInterval(timer);
+  }, [room?.countdownStartedAt, room?.status]);
+
+  useEffect(() => {
+    if (count > 0 || !isHost) return;
+    void startGame();
+  }, [count, isHost, startGame]);
+
   useEffect(() => {
     if (room?.status === "active") {
       navigate("/game", { replace: true });

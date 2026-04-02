@@ -12,10 +12,19 @@ const JoinTable = () => {
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
-    if (!code.trim() || !name.trim() || loading) return;
+    const roomCode = code.trim();
+    const displayName = name.trim();
+    if (!roomCode || !displayName || loading) return;
+
     setLoading(true);
-    await joinRoom(code.trim(), name.trim());
-    navigate("/waiting");
+    try {
+      const result = await joinRoom(roomCode, displayName);
+      if (result) {
+        navigate("/waiting");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -35,7 +44,7 @@ const JoinTable = () => {
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           maxLength={4}
           autoFocus
-          className="w-full rounded-2xl border border-border bg-secondary px-5 py-4 text-center text-2xl font-semibold tracking-[0.3em] text-foreground placeholder:text-muted-foreground placeholder:tracking-normal placeholder:text-base placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded-2xl border border-border bg-secondary px-5 py-4 text-center text-2xl font-semibold tracking-[0.3em] text-foreground placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
         <input
@@ -48,12 +57,7 @@ const JoinTable = () => {
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
         />
 
-        <Button
-          onClick={handleJoin}
-          disabled={!code.trim() || !name.trim() || loading}
-          size="lg"
-          className="w-full"
-        >
+        <Button onClick={handleJoin} disabled={!code.trim() || !name.trim() || loading} size="lg" className="w-full">
           {loading ? "Joining..." : "Join"}
         </Button>
 
