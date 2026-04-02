@@ -444,6 +444,22 @@ export function useGameRoom() {
     [publishRoomState, setRoomState]
   );
 
+  const updateDrinksText = useCallback(
+    async (drinksText: string) => {
+      const channel = channelRef.current;
+      const currentRoom = roomRef.current;
+      const localPlayer = localPlayerRef.current;
+
+      if (!channel || !currentRoom || !localPlayer) return;
+      if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+      const nextRoom = normalizeRoom({ ...currentRoom, drinksText });
+      setRoomState(nextRoom);
+      await publishRoomState(channel, nextRoom);
+    },
+    [publishRoomState, setRoomState]
+  );
+
   const startCountdown = useCallback(async () => {
     const channel = channelRef.current;
     const currentRoom = roomRef.current;
