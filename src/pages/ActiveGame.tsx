@@ -132,10 +132,23 @@ const ActiveGame = () => {
         {movementDetected ? (
           <span className="text-2xl font-bold text-destructive">MOVEMENT DETECTED</span>
         ) : settling ? (
-          <>
-            <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
-            <p className="text-caption text-sm animate-pulse-slow">Settling...</p>
-          </>
+          <div className="flex flex-col items-center gap-6">
+            <p className="text-body text-lg text-foreground">Place your phone down</p>
+            <div className="relative w-16 h-16">
+              <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                <circle
+                  cx="32" cy="32" r="28" fill="none"
+                  stroke="hsl(var(--foreground))"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 28}
+                  strokeDashoffset={2 * Math.PI * 28 * (1 - settleProgress)}
+                  className="transition-[stroke-dashoffset] duration-100"
+                />
+              </svg>
+            </div>
+          </div>
         ) : (
           <>
             <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
