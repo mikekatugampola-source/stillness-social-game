@@ -11,6 +11,7 @@ const ActiveGame = () => {
 
   const [elapsed, setElapsed] = useState(0);
   const [gameActive, setGameActive] = useState(true);
+  const [movementDetected, setMovementDetected] = useState(false);
   const startTimeRef = useRef(Date.now());
 
   const me = players.find((p) => p.playerId === playerId);
@@ -35,10 +36,11 @@ const ActiveGame = () => {
   const handleMotion = useCallback(() => {
     if (!gameActive) return;
     setGameActive(false);
+    setMovementDetected(true);
     reportLoss(playerId, playerName);
   }, [gameActive, reportLoss, playerId, playerName]);
 
-  const { isMonitoring, requestPermission } = useMotionDetection(gameActive, handleMotion);
+  const { isMonitoring, debug, requestPermission } = useMotionDetection(gameActive, handleMotion);
 
   useEffect(() => {
     requestPermission();
@@ -56,6 +58,7 @@ const ActiveGame = () => {
 
   const handleEndGame = () => {
     setGameActive(false);
+    setMovementDetected(true);
     reportLoss(playerId, playerName);
   };
 
@@ -73,19 +76,34 @@ const ActiveGame = () => {
         </Button>
       </div>
 
+      {/* Debug overlay – visible during testing, remove for production */}
+      <div className="absolute right-3 top-12 rounded-md bg-muted/80 px-3 py-2 text-left text-[10px] font-mono text-muted-foreground backdrop-blur">
+        <div>accel Δ: {debug.accelDelta}</div>
+        <div>tilt Δ: {debug.tiltDelta}</div>
+        <div>accel thresh: {debug.accelThreshold}</div>
+        <div>tilt thresh: {debug.tiltThreshold}</div>
+        <div>triggered: {debug.triggered ? "YES" : "no"}</div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.8 }}
         className="flex flex-col items-center gap-6"
       >
-        <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
+        {movementDetected ? (
+          <span className="text-2xl font-bold text-destructive">MOVEMENT DETECTED</span>
+        ) : (
+          <>
+            <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
 
-        <p className={`text-caption text-sm ${isMonitoring ? "animate-pulse-slow" : ""}`}>
-          {isMonitoring ? "Monitoring motion" : "Calibrating..."}
-        </p>
+            <p className={`text-caption text-sm ${isMonitoring ? "animate-pulse-slow" : ""}`}>
+              {isMonitoring ? "Monitoring motion" : "Calibrating..."}
+            </p>
 
-        <p className="text-caption mt-8 text-xs">Leave your phone face down</p>
+            <p className="text-caption mt-8 text-xs">Leave your phone face down</p>
+          </>
+        )}
 
         {import.meta.env.DEV && (
           <button
