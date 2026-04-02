@@ -544,6 +544,7 @@ export function useGameRoom() {
     toggleReady,
     updateMode,
     updatePunishment,
+    updateDrinksText,
     startCountdown,
     startGame,
     reportLoss,
