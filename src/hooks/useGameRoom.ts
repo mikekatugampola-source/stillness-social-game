@@ -422,6 +422,26 @@ export function useGameRoom() {
     [publishRoomState, setRoomState]
   );
 
+  const updatePunishment = useCallback(
+    async (punishmentText: string) => {
+      const channel = channelRef.current;
+      const currentRoom = roomRef.current;
+      const localPlayer = localPlayerRef.current;
+
+      if (!channel || !currentRoom || !localPlayer) return;
+      if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+      const nextRoom = normalizeRoom({
+        ...currentRoom,
+        punishmentText,
+      });
+
+      setRoomState(nextRoom);
+      await publishRoomState(channel, nextRoom);
+    },
+    [publishRoomState, setRoomState]
+  );
+
   const startCountdown = useCallback(async () => {
     const channel = channelRef.current;
     const currentRoom = roomRef.current;
