@@ -10,7 +10,8 @@ const ActiveGame = () => {
   const { room, playerId, players, reportLoss } = useGameRoomContext();
 
   const [elapsed, setElapsed] = useState(0);
-  const [gameActive, setGameActive] = useState(true);
+  const [gameActive, setGameActive] = useState(false); // starts false for settle delay
+  const [settling, setSettling] = useState(true);
   const [movementDetected, setMovementDetected] = useState(false);
   const startTimeRef = useRef(Date.now());
 
