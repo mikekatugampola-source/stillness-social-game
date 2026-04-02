@@ -103,7 +103,9 @@ const ActiveGame = () => {
           <div>perm: {debug.permissionState}</div>
           <div>listeners: {debug.listenersActive ? "YES" : "no"}</div>
           <div>events: {debug.eventCount}</div>
-          <div>settling: {settling ? "YES" : "no"}</div>
+          <div>settle: {settling ? "YES" : "no"}</div>
+          <div>baseline: {debug.accelDelta > 0 || !settling ? "YES" : "no"}</div>
+          <div>monitoring: {isMonitoring ? "YES" : "no"}</div>
           <div className="mt-1 border-t border-muted-foreground/20 pt-1">
             raw ax: {debug.rawAccel.x}
           </div>
