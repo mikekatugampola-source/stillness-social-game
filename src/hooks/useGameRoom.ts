@@ -117,6 +117,7 @@ function createRoomState(
     countdownStartedAt: null,
     endedAt: null,
     punishmentText: null,
+    drinksText: mode === "drinks" ? "Loser buys the round" : null,
   });
 }
 
