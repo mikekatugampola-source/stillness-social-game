@@ -86,6 +86,15 @@ const ActiveGame = () => {
         </p>
 
         <p className="text-caption mt-8 text-xs">Leave your phone face down</p>
+
+        {import.meta.env.DEV && (
+          <button
+            onClick={handleEndGame}
+            className="mt-10 rounded-md border border-muted-foreground/30 px-4 py-2 text-xs text-muted-foreground active:bg-muted/20"
+          >
+            Simulate Movement
+          </button>
+        )}
       </motion.div>
     </div>
   );
