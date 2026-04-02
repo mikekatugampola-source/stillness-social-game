@@ -2,8 +2,6 @@ import { motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGameRoomContext } from "@/context/GameRoomContext";
-import { getRandomDrinkMessage } from "@/lib/punishments";
-import { useMemo } from "react";
 
 const ResultScreen = () => {
   const navigate = useNavigate();
@@ -15,8 +13,7 @@ const ResultScreen = () => {
   const loserName = room?.loserName ?? "Someone";
   const mode = room?.mode ?? "classic";
   const sharedPunishment = room?.punishmentText;
-
-  const drinkMsg = useMemo(() => getRandomDrinkMessage(), []);
+  const sharedDrinks = room?.drinksText;
 
   const formatTime = (seconds: number) => {
     if (!seconds && seconds !== 0) return "0:00";
@@ -25,10 +22,7 @@ const ResultScreen = () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleHome = () => {
-    leaveRoom();
-    navigate("/");
-  };
+  const handleHome = () => { leaveRoom(); navigate("/"); };
 
   return (
     <div className="screen-center">
@@ -64,24 +58,21 @@ const ResultScreen = () => {
           </motion.div>
         )}
 
-        {mode === "drinks" && (
+        {mode === "drinks" && sharedDrinks && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="mt-4"
+            className="glass-card mt-4 max-w-xs text-center"
           >
-            <p className="text-lg text-foreground/80 italic">{drinkMsg}</p>
+            <p className="text-caption text-[10px] uppercase tracking-widest mb-2">Drinks</p>
+            <p className="text-base font-medium text-foreground leading-relaxed">{sharedDrinks}</p>
           </motion.div>
         )}
 
         <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
-          <Button onClick={handleHome} size="lg" className="w-full">
-            Play Again
-          </Button>
-          <Button variant="ghost" onClick={handleHome} size="sm">
-            Back to Home
-          </Button>
+          <Button onClick={handleHome} size="lg" className="w-full">Play Again</Button>
+          <Button variant="ghost" onClick={handleHome} size="sm">Back to Home</Button>
         </div>
       </motion.div>
     </div>

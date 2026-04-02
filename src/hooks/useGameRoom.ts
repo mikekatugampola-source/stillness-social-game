@@ -416,6 +416,7 @@ export function useGameRoom() {
       const nextRoom = normalizeRoom({
         ...currentRoom,
         mode,
+        drinksText: mode === "drinks" ? (currentRoom.drinksText || "Loser buys the round") : currentRoom.drinksText,
       });
 
       setRoomState(nextRoom);

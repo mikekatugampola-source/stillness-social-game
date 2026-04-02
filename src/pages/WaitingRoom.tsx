@@ -10,13 +10,23 @@ import { punishments } from "@/lib/punishments";
 const modes: { id: GameMode; label: string; subtitle: string }[] = [
   { id: "classic", label: "Classic", subtitle: "Pure willpower" },
   { id: "punishment", label: "Punishment", subtitle: "Loser gets a dare" },
-  { id: "drinks", label: "Drinks", subtitle: "Loser takes a sip" },
+  { id: "drinks", label: "Drinks", subtitle: "Loser drinks" },
+];
+
+const drinksPresets = [
+  "Loser buys the round",
+  "Finish your drink",
+  "Take 2 sips",
+  "Everyone drinks, loser drinks twice",
+  "Choose someone else to drink",
 ];
 
 const WaitingRoom = () => {
   const navigate = useNavigate();
-  const { room, playerId, toggleReady, updateMode, updatePunishment, startCountdown, leaveRoom } =
-    useGameRoomContext();
+  const {
+    room, playerId, toggleReady, updateMode, updatePunishment,
+    updateDrinksText, startCountdown, leaveRoom,
+  } = useGameRoomContext();
   const [customPunishment, setCustomPunishment] = useState("");
 
   useEffect(() => {
@@ -38,10 +48,7 @@ const WaitingRoom = () => {
   const hasPunishment = currentMode !== "punishment" || !!room.punishmentText?.trim();
   const canStart = players.length >= 2 && players.every((p) => p.isReady) && hasPunishment;
 
-  const handleLeave = () => {
-    leaveRoom();
-    navigate("/");
-  };
+  const handleLeave = () => { leaveRoom(); navigate("/"); };
 
   const handleSelectPreset = (text: string) => {
     setCustomPunishment("");
@@ -52,6 +59,59 @@ const WaitingRoom = () => {
     const trimmed = customPunishment.trim();
     if (trimmed) void updatePunishment(trimmed);
   };
+
+  /* Shared rule picker for punishment / drinks */
+  const RulePicker = ({ label, presets, selected, onSelect }: {
+    label: string; presets: string[]; selected: string | null; onSelect: (t: string) => void;
+  }) => (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="w-full">
+      {isHost ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-caption uppercase tracking-widest">{label}</p>
+          {label === "Choose Punishment" && (
+            <div className="flex gap-2">
+              <Input
+                value={customPunishment}
+                onChange={(e) => setCustomPunishment(e.target.value)}
+                placeholder="Type a custom punishment…"
+                className="flex-1"
+                onKeyDown={(e) => e.key === "Enter" && handleCustomSubmit()}
+              />
+              <Button size="sm" variant="secondary" onClick={handleCustomSubmit} disabled={!customPunishment.trim()}>
+                Set
+              </Button>
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+            {presets.map((p) => (
+              <button
+                key={p}
+                onClick={() => onSelect(p)}
+                className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-all ${
+                  selected === p
+                    ? "border-foreground bg-foreground/10 text-foreground"
+                    : "border-border bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          {selected && (
+            <div className="rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-2 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Selected</p>
+              <p className="text-xs font-medium text-foreground">{selected}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="glass-card w-full text-center">
+          <p className="text-caption text-[10px] uppercase tracking-widest mb-1">{label.replace("Choose ", "")}</p>
+          <p className="text-sm font-medium text-foreground">{selected || "Host is choosing…"}</p>
+        </div>
+      )}
+    </motion.div>
+  );
 
   return (
     <div className="screen-center">
@@ -92,65 +152,22 @@ const WaitingRoom = () => {
           </div>
         )}
 
-        {/* Punishment setup — host picks, all players see */}
         {currentMode === "punishment" && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="w-full"
-          >
-            {isHost ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-caption uppercase tracking-widest">Choose Punishment</p>
-                <div className="flex gap-2">
-                  <Input
-                    value={customPunishment}
-                    onChange={(e) => setCustomPunishment(e.target.value)}
-                    placeholder="Type a custom punishment…"
-                    className="flex-1"
-                    onKeyDown={(e) => e.key === "Enter" && handleCustomSubmit()}
-                  />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleCustomSubmit}
-                    disabled={!customPunishment.trim()}
-                  >
-                    Set
-                  </Button>
-                </div>
-                <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-                  {punishments.map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => handleSelectPreset(p)}
-                      className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-all ${
-                        room.punishmentText === p
-                          ? "border-foreground bg-foreground/10 text-foreground"
-                          : "border-border bg-secondary text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="glass-card w-full text-center">
-                <p className="text-caption text-[10px] uppercase tracking-widest mb-1">Punishment</p>
-                <p className="text-sm font-medium text-foreground">
-                  {room.punishmentText || "Host is choosing…"}
-                </p>
-              </div>
-            )}
+          <RulePicker
+            label="Choose Punishment"
+            presets={punishments}
+            selected={room.punishmentText}
+            onSelect={handleSelectPreset}
+          />
+        )}
 
-            {room.punishmentText && isHost && (
-              <div className="mt-2 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-2 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Selected</p>
-                <p className="text-xs font-medium text-foreground">{room.punishmentText}</p>
-              </div>
-            )}
-          </motion.div>
+        {currentMode === "drinks" && (
+          <RulePicker
+            label="Choose Drinks Rule"
+            presets={drinksPresets}
+            selected={room.drinksText}
+            onSelect={(t) => void updateDrinksText(t)}
+          />
         )}
 
         <div className="w-full">
@@ -173,11 +190,7 @@ const WaitingRoom = () => {
                       </span>
                     )}
                   </div>
-                  <span
-                    className={`text-xs font-medium ${
-                      player.isReady ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
+                  <span className={`text-xs font-medium ${player.isReady ? "text-foreground" : "text-muted-foreground"}`}>
                     {player.isReady ? "Ready" : "Waiting"}
                   </span>
                 </motion.div>
@@ -188,45 +201,26 @@ const WaitingRoom = () => {
 
         <div className="flex w-full flex-col gap-3">
           {!isHost && (
-            <Button
-              onClick={toggleReady}
-              variant={me?.isReady ? "secondary" : "default"}
-              size="lg"
-              className="w-full"
-            >
+            <Button onClick={toggleReady} variant={me?.isReady ? "secondary" : "default"} size="lg" className="w-full">
               {me?.isReady ? "Unready" : "Ready"}
             </Button>
           )}
-
           {isHost && (
             <>
-              <Button
-                onClick={() => void startCountdown()}
-                disabled={!canStart}
-                size="lg"
-                className="w-full"
-              >
+              <Button onClick={() => void startCountdown()} disabled={!canStart} size="lg" className="w-full">
                 Start Game
               </Button>
               {!canStart && (
                 <p className="text-center text-xs text-muted-foreground">
-                  {!hasPunishment
-                    ? "Select a punishment to start"
-                    : "Waiting for all players to be ready"}
+                  {!hasPunishment ? "Select a punishment to start" : "Waiting for all players to be ready"}
                 </p>
               )}
             </>
           )}
-
-          <Button variant="ghost" onClick={handleLeave} size="sm">
-            Leave
-          </Button>
+          <Button variant="ghost" onClick={handleLeave} size="sm">Leave</Button>
         </div>
 
-        <details
-          className="w-full rounded-xl border border-border/60 bg-secondary/60 p-3 text-left text-[10px] text-muted-foreground"
-          aria-label="Room debug info"
-        >
+        <details className="w-full rounded-xl border border-border/60 bg-secondary/60 p-3 text-left text-[10px] text-muted-foreground">
           <summary className="cursor-pointer select-none text-caption tracking-[0.2em]">Debug</summary>
           <div className="mt-3 space-y-2 break-all">
             <p>roomCode: {room.roomCode}</p>
@@ -234,6 +228,7 @@ const WaitingRoom = () => {
             <p>mode: {room.mode}</p>
             <p>hostId: {room.hostId}</p>
             <p>punishmentText: {room.punishmentText ?? "(none)"}</p>
+            <p>drinksText: {room.drinksText ?? "(none)"}</p>
             <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(room.players, null, 2)}</pre>
           </div>
         </details>
