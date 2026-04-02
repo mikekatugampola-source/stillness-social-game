@@ -10,10 +10,12 @@ const ActiveGame = () => {
   const { room, playerId, players, reportLoss } = useGameRoomContext();
 
   const [elapsed, setElapsed] = useState(0);
-  const [gameActive, setGameActive] = useState(false); // starts false for settle delay
+  const [gameActive, setGameActive] = useState(false);
   const [settling, setSettling] = useState(true);
+  const [settleProgress, setSettleProgress] = useState(0);
   const [movementDetected, setMovementDetected] = useState(false);
   const startTimeRef = useRef(Date.now());
+  const settleDurationRef = useRef(2000 + Math.random() * 600); // 2.0–2.6s
 
   const me = players.find((p) => p.playerId === playerId);
   const playerName = me?.displayName ?? "You";
@@ -23,13 +25,27 @@ const ActiveGame = () => {
       navigate("/", { replace: true });
       return;
     }
-    // Settle delay: wait 750ms before activating motion monitoring
+    const duration = settleDurationRef.current;
+    const settleStart = Date.now();
+
+    // Animate progress during settle
+    const progressInterval = setInterval(() => {
+      const pct = Math.min(1, (Date.now() - settleStart) / duration);
+      setSettleProgress(pct);
+    }, 50);
+
     const timer = setTimeout(() => {
+      clearInterval(progressInterval);
+      setSettleProgress(1);
       setSettling(false);
       setGameActive(true);
       startTimeRef.current = Date.now();
-    }, 750);
-    return () => clearTimeout(timer);
+    }, duration);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(progressInterval);
+    };
   }, [room, navigate]);
 
   // Timer
@@ -87,7 +103,9 @@ const ActiveGame = () => {
           <div>perm: {debug.permissionState}</div>
           <div>listeners: {debug.listenersActive ? "YES" : "no"}</div>
           <div>events: {debug.eventCount}</div>
-          <div>settling: {settling ? "YES" : "no"}</div>
+          <div>settle: {settling ? "YES" : "no"}</div>
+          <div>baseline: {debug.accelDelta > 0 || !settling ? "YES" : "no"}</div>
+          <div>monitoring: {isMonitoring ? "YES" : "no"}</div>
           <div className="mt-1 border-t border-muted-foreground/20 pt-1">
             raw ax: {debug.rawAccel.x}
           </div>
@@ -114,10 +132,23 @@ const ActiveGame = () => {
         {movementDetected ? (
           <span className="text-2xl font-bold text-destructive">MOVEMENT DETECTED</span>
         ) : settling ? (
-          <>
-            <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
-            <p className="text-caption text-sm animate-pulse-slow">Settling...</p>
-          </>
+          <div className="flex flex-col items-center gap-6">
+            <p className="text-body text-lg text-foreground">Place your phone down</p>
+            <div className="relative w-16 h-16">
+              <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                <circle
+                  cx="32" cy="32" r="28" fill="none"
+                  stroke="hsl(var(--foreground))"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 28}
+                  strokeDashoffset={2 * Math.PI * 28 * (1 - settleProgress)}
+                  className="transition-[stroke-dashoffset] duration-100"
+                />
+              </svg>
+            </div>
+          </div>
         ) : (
           <>
             <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
