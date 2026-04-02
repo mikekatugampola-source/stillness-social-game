@@ -9,7 +9,6 @@ const ResultScreen = () => {
   const { survivalTime } = (location.state as any) ?? {};
   const { room, playerId, leaveRoom } = useGameRoomContext();
 
-  const isMe = room?.loserId === playerId;
   const loserName = room?.loserName ?? "Someone";
   const mode = room?.mode ?? "classic";
   const sharedPunishment = room?.punishmentText;
@@ -22,58 +21,115 @@ const ResultScreen = () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleHome = () => { leaveRoom(); navigate("/"); };
+  const handlePlayAgain = () => {
+    leaveRoom();
+    navigate("/");
+  };
+
+  const handleShare = async () => {
+    const text = `${loserName.toUpperCase()} LOST after ${formatTime(survivalTime ?? 0)}${
+      mode === "punishment" && sharedPunishment ? ` — ${sharedPunishment}` : ""
+    }${mode === "drinks" && sharedDrinks ? ` — ${sharedDrinks}` : ""}\n\nTry it with your friends 👉 Don't Touch`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+      } catch {}
+    } else {
+      await navigator.clipboard?.writeText(text);
+    }
+  };
+
+  const outcomeText =
+    mode === "punishment" && sharedPunishment
+      ? sharedPunishment
+      : mode === "drinks" && sharedDrinks
+        ? sharedDrinks
+        : null;
 
   return (
-    <div className="screen-center">
+    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-background px-6 py-12">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="flex flex-col items-center gap-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="flex flex-col items-center justify-center flex-1 w-full max-w-sm gap-10"
       >
-        <h1 className="text-display">
-          {isMe ? "You lost" : `${loserName} lost`}
-        </h1>
-        <p className="text-caption text-lg">
-          {isMe ? "You moved first" : "They moved first"}
-        </p>
+        {/* Spacer top */}
+        <div className="flex-1" />
 
-        <div className="mt-4 flex flex-col items-center gap-1">
-          <p className="text-caption text-xs uppercase tracking-widest">Survival Time</p>
-          <p className="text-3xl font-light text-foreground tracking-tight">
-            {formatTime(survivalTime ?? 0)}
-          </p>
-        </div>
+        {/* Main result */}
+        <motion.h1
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-foreground font-bold tracking-tight leading-none text-center"
+          style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
+        >
+          {loserName.toUpperCase()} LOST
+        </motion.h1>
 
-        {mode === "punishment" && sharedPunishment && (
-          <motion.div
+        {/* Time */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.7 }}
+          transition={{ delay: 0.5 }}
+          className="text-foreground font-light tracking-tight text-center"
+          style={{ fontSize: "clamp(2.5rem, 8vw, 4rem)", fontVariantNumeric: "tabular-nums" }}
+        >
+          {formatTime(survivalTime ?? 0)}
+        </motion.p>
+
+        {/* Outcome (punishment / drinks) */}
+        {outcomeText && (
+          <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="glass-card mt-4 max-w-xs text-center"
+            animate={{ opacity: 0.85 }}
+            transition={{ delay: 0.7 }}
+            className="text-foreground text-center font-normal leading-relaxed"
+            style={{ fontSize: "clamp(1.1rem, 4.5vw, 1.5rem)" }}
           >
-            <p className="text-caption text-[10px] uppercase tracking-widest mb-2">Punishment</p>
-            <p className="text-base font-medium text-foreground leading-relaxed">{sharedPunishment}</p>
-          </motion.div>
+            {outcomeText}
+          </motion.p>
         )}
 
-        {mode === "drinks" && sharedDrinks && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="glass-card mt-4 max-w-xs text-center"
-          >
-            <p className="text-caption text-[10px] uppercase tracking-widest mb-2">Drinks</p>
-            <p className="text-base font-medium text-foreground leading-relaxed">{sharedDrinks}</p>
-          </motion.div>
-        )}
+        {/* CTA */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.55 }}
+          transition={{ delay: 1.0 }}
+          className="text-foreground text-sm text-center tracking-wide"
+        >
+          Try it with your friends
+        </motion.p>
 
-        <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
-          <Button onClick={handleHome} size="lg" className="w-full">Play Again</Button>
-          <Button variant="ghost" onClick={handleHome} size="sm">Back to Home</Button>
-        </div>
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+          className="flex flex-col items-center gap-3 w-full"
+        >
+          <Button onClick={handlePlayAgain} size="lg" className="w-full max-w-[280px]">
+            Play Again
+          </Button>
+          <Button variant="outline" onClick={handleShare} size="sm" className="w-full max-w-[280px]">
+            Share
+          </Button>
+        </motion.div>
+
+        {/* Branding */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.4 }}
+          transition={{ delay: 1.3 }}
+          className="text-foreground text-xs tracking-widest text-center pb-2"
+        >
+          Don't Touch
+        </motion.p>
       </motion.div>
     </div>
   );
