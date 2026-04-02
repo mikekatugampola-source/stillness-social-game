@@ -111,45 +111,22 @@ const ActiveGame = () => {
         transition={{ duration: 0.8 }}
         className="flex flex-col items-center gap-6"
       >
-        {/* Permission gate - show button if iOS needs user gesture */}
-        {needsPermissionButton && hasPermission !== true && !movementDetected && (
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-caption text-sm">Motion sensors require permission</p>
-            <Button
-              onClick={requestPermission}
-              className="px-6 py-3"
-            >
-              Enable Motion
-            </Button>
-          </div>
-        )}
-
         {movementDetected ? (
           <span className="text-2xl font-bold text-destructive">MOVEMENT DETECTED</span>
-        ) : hasPermission === false ? (
-          <div className="flex flex-col items-center gap-4">
-            <span className="text-lg font-semibold text-destructive">Motion permission denied</span>
-            <p className="text-caption text-xs">Please allow motion access in your device settings</p>
-            <Button onClick={requestPermission} variant="outline" size="sm">
-              Try Again
-            </Button>
-          </div>
-        ) : hasPermission === true ? (
+        ) : settling ? (
           <>
             <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
-
+            <p className="text-caption text-sm animate-pulse-slow">Settling...</p>
+          </>
+        ) : (
+          <>
+            <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
             <p className={`text-caption text-sm ${isMonitoring ? "animate-pulse-slow" : ""}`}>
               {isMonitoring ? "Monitoring motion" : "Calibrating..."}
             </p>
-
             <p className="text-caption mt-8 text-xs">Leave your phone face down</p>
           </>
-        ) : !needsPermissionButton ? (
-          <>
-            <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
-            <p className="text-caption text-sm">Starting sensors...</p>
-          </>
-        ) : null}
+        )}
 
         {import.meta.env.DEV && (
           <button
