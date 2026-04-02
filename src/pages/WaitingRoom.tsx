@@ -34,7 +34,7 @@ const WaitingRoom = () => {
 
   useEffect(() => {
     if (room?.status === "countdown") {
-      navigate("/countdown", { replace: true });
+      navigate("/motion-permission", { replace: true });
     }
   }, [room?.status, navigate]);
 
