@@ -96,7 +96,8 @@ export function useMotionDetection(
     return granted;
   }, []);
 
-  // Auto-grant permission on platforms that don't require requestPermission
+  // Auto-grant permission on platforms that don't require it,
+  // OR re-detect already-granted permission on iOS (from MotionPermission page)
   useEffect(() => {
     if (!needsPermissionRequest()) {
       permissionGrantedRef.current = true;
@@ -106,6 +107,33 @@ export function useMotionDetection(
         needsPermissionButton: false,
         debug: { ...s.debug, permissionState: "granted" },
       }));
+    } else {
+      // On iOS, try requesting again — if already granted in this session,
+      // it resolves immediately without a prompt
+      (async () => {
+        let granted = true;
+        try {
+          if (typeof DeviceOrientationEvent !== "undefined" && "requestPermission" in DeviceOrientationEvent) {
+            const r = await (DeviceOrientationEvent as any).requestPermission();
+            if (r !== "granted") granted = false;
+          }
+          if (granted && typeof DeviceMotionEvent !== "undefined" && "requestPermission" in DeviceMotionEvent) {
+            const r = await (DeviceMotionEvent as any).requestPermission();
+            if (r !== "granted") granted = false;
+          }
+        } catch {
+          granted = false;
+        }
+        if (granted) {
+          permissionGrantedRef.current = true;
+          setState((s) => ({
+            ...s,
+            hasPermission: true,
+            needsPermissionButton: false,
+            debug: { ...s.debug, permissionState: "granted" },
+          }));
+        }
+      })();
     }
   }, []);
 
