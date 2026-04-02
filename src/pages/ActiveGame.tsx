@@ -23,6 +23,13 @@ const ActiveGame = () => {
       navigate("/", { replace: true });
       return;
     }
+    // Settle delay: wait 750ms before activating motion monitoring
+    const timer = setTimeout(() => {
+      setSettling(false);
+      setGameActive(true);
+      startTimeRef.current = Date.now();
+    }, 750);
+    return () => clearTimeout(timer);
   }, [room, navigate]);
 
   // Timer
