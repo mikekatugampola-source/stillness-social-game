@@ -48,7 +48,7 @@ const ActiveGame = () => {
     reportLoss(playerId, playerName);
   }, [gameActive, reportLoss, playerId, playerName]);
 
-  const { isMonitoring, hasPermission, needsPermissionButton, debug, requestPermission } = useMotionDetection(gameActive, handleMotion);
+  const { isMonitoring, debug } = useMotionDetection(gameActive, handleMotion);
 
   // Listen for game finish
   useEffect(() => {
