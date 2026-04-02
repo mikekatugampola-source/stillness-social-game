@@ -115,6 +115,7 @@ function createRoomState(
     loserName: null,
     countdownStartedAt: null,
     endedAt: null,
+    punishmentText: null,
   });
 }
 

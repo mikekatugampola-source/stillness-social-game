@@ -20,6 +20,7 @@ export interface GameRoom {
   loserName: string | null;
   countdownStartedAt: string | null;
   endedAt: string | null;
+  punishmentText: string | null;
 }
 
 export type Player = RoomPlayer;
