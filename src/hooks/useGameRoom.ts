@@ -451,7 +451,9 @@ export function useGameRoom() {
     if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
 
     const canStart =
-      currentRoom.players.length >= 2 && currentRoom.players.every((player) => player.isReady);
+      currentRoom.players.length >= 2 &&
+      currentRoom.players.every((player) => player.isReady) &&
+      (currentRoom.mode !== "punishment" || !!currentRoom.punishmentText?.trim());
 
     if (!canStart) return;
 

@@ -1,9 +1,9 @@
-import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGameRoomContext } from "@/context/GameRoomContext";
-import { getRandomPunishment, getRandomDrinkMessage } from "@/lib/punishments";
+import { getRandomDrinkMessage } from "@/lib/punishments";
+import { useMemo } from "react";
 
 const ResultScreen = () => {
   const navigate = useNavigate();
@@ -14,8 +14,8 @@ const ResultScreen = () => {
   const isMe = room?.loserId === playerId;
   const loserName = room?.loserName ?? "Someone";
   const mode = room?.mode ?? "classic";
+  const sharedPunishment = room?.punishmentText;
 
-  const punishment = useMemo(() => getRandomPunishment(), []);
   const drinkMsg = useMemo(() => getRandomDrinkMessage(), []);
 
   const formatTime = (seconds: number) => {
@@ -52,7 +52,7 @@ const ResultScreen = () => {
           </p>
         </div>
 
-        {mode === "punishment" && (
+        {mode === "punishment" && sharedPunishment && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -60,7 +60,7 @@ const ResultScreen = () => {
             className="glass-card mt-4 max-w-xs text-center"
           >
             <p className="text-caption text-[10px] uppercase tracking-widest mb-2">Punishment</p>
-            <p className="text-base font-medium text-foreground leading-relaxed">{punishment}</p>
+            <p className="text-base font-medium text-foreground leading-relaxed">{sharedPunishment}</p>
           </motion.div>
         )}
 
