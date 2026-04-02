@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useGameRoomContext } from "@/context/GameRoomContext";
+import RulePicker from "@/components/RulePicker";
 import type { GameMode } from "@/lib/game-types";
 import { punishments } from "@/lib/punishments";
 
@@ -27,7 +27,6 @@ const WaitingRoom = () => {
     room, playerId, toggleReady, updateMode, updatePunishment,
     updateDrinksText, startCountdown, leaveRoom,
   } = useGameRoomContext();
-  const [customPunishment, setCustomPunishment] = useState("");
 
   useEffect(() => {
     if (!room) navigate("/", { replace: true });
@@ -49,69 +48,6 @@ const WaitingRoom = () => {
   const canStart = players.length >= 2 && players.every((p) => p.isReady) && hasPunishment;
 
   const handleLeave = () => { leaveRoom(); navigate("/"); };
-
-  const handleSelectPreset = (text: string) => {
-    setCustomPunishment("");
-    void updatePunishment(text);
-  };
-
-  const handleCustomSubmit = () => {
-    const trimmed = customPunishment.trim();
-    if (trimmed) void updatePunishment(trimmed);
-  };
-
-  /* Shared rule picker for punishment / drinks */
-  const RulePicker = ({ label, presets, selected, onSelect }: {
-    label: string; presets: string[]; selected: string | null; onSelect: (t: string) => void;
-  }) => (
-    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="w-full">
-      {isHost ? (
-        <div className="flex flex-col gap-3">
-          <p className="text-caption uppercase tracking-widest">{label}</p>
-          {label === "Choose Punishment" && (
-            <div className="flex gap-2">
-              <Input
-                value={customPunishment}
-                onChange={(e) => setCustomPunishment(e.target.value)}
-                placeholder="Type a custom punishment…"
-                className="flex-1"
-                onKeyDown={(e) => e.key === "Enter" && handleCustomSubmit()}
-              />
-              <Button size="sm" variant="secondary" onClick={handleCustomSubmit} disabled={!customPunishment.trim()}>
-                Set
-              </Button>
-            </div>
-          )}
-          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {presets.map((p) => (
-              <button
-                key={p}
-                onClick={() => onSelect(p)}
-                className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-all ${
-                  selected === p
-                    ? "border-foreground bg-foreground/10 text-foreground"
-                    : "border-border bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-          {selected && (
-            <div className="rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-2 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Selected</p>
-              <p className="text-xs font-medium text-foreground">{selected}</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="glass-card w-full text-center">
-          <p className="text-caption text-[10px] uppercase tracking-widest mb-1">{label.replace("Choose ", "")}</p>
-          <p className="text-sm font-medium text-foreground">{selected || "Host is choosing…"}</p>
-        </div>
-      )}
-    </motion.div>
-  );
 
   return (
     <div className="screen-center">
@@ -157,7 +93,9 @@ const WaitingRoom = () => {
             label="Choose Punishment"
             presets={punishments}
             selected={room.punishmentText}
-            onSelect={handleSelectPreset}
+            isHost={isHost}
+            showCustomInput
+            onSelect={(t) => void updatePunishment(t)}
           />
         )}
 
@@ -166,6 +104,7 @@ const WaitingRoom = () => {
             label="Choose Drinks Rule"
             presets={drinksPresets}
             selected={room.drinksText}
+            isHost={isHost}
             onSelect={(t) => void updateDrinksText(t)}
           />
         )}
@@ -219,19 +158,6 @@ const WaitingRoom = () => {
           )}
           <Button variant="ghost" onClick={handleLeave} size="sm">Leave</Button>
         </div>
-
-        <details className="w-full rounded-xl border border-border/60 bg-secondary/60 p-3 text-left text-[10px] text-muted-foreground">
-          <summary className="cursor-pointer select-none text-caption tracking-[0.2em]">Debug</summary>
-          <div className="mt-3 space-y-2 break-all">
-            <p>roomCode: {room.roomCode}</p>
-            <p>playerCount: {room.players.length}</p>
-            <p>mode: {room.mode}</p>
-            <p>hostId: {room.hostId}</p>
-            <p>punishmentText: {room.punishmentText ?? "(none)"}</p>
-            <p>drinksText: {room.drinksText ?? "(none)"}</p>
-            <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(room.players, null, 2)}</pre>
-          </div>
-        </details>
       </motion.div>
     </div>
   );
