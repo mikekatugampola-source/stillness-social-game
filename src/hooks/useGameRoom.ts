@@ -95,6 +95,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     loserName: nextRoom.loserName ?? null,
     countdownStartedAt: nextRoom.countdownStartedAt ?? null,
     endedAt: nextRoom.endedAt ?? null,
+    punishmentText: nextRoom.punishmentText ?? null,
   };
 }
 
@@ -114,6 +115,7 @@ function createRoomState(
     loserName: null,
     countdownStartedAt: null,
     endedAt: null,
+    punishmentText: null,
   });
 }
 
@@ -420,6 +422,26 @@ export function useGameRoom() {
     [publishRoomState, setRoomState]
   );
 
+  const updatePunishment = useCallback(
+    async (punishmentText: string) => {
+      const channel = channelRef.current;
+      const currentRoom = roomRef.current;
+      const localPlayer = localPlayerRef.current;
+
+      if (!channel || !currentRoom || !localPlayer) return;
+      if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+      const nextRoom = normalizeRoom({
+        ...currentRoom,
+        punishmentText,
+      });
+
+      setRoomState(nextRoom);
+      await publishRoomState(channel, nextRoom);
+    },
+    [publishRoomState, setRoomState]
+  );
+
   const startCountdown = useCallback(async () => {
     const channel = channelRef.current;
     const currentRoom = roomRef.current;
@@ -429,7 +451,9 @@ export function useGameRoom() {
     if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
 
     const canStart =
-      currentRoom.players.length >= 2 && currentRoom.players.every((player) => player.isReady);
+      currentRoom.players.length >= 2 &&
+      currentRoom.players.every((player) => player.isReady) &&
+      (currentRoom.mode !== "punishment" || !!currentRoom.punishmentText?.trim());
 
     if (!canStart) return;
 
@@ -501,6 +525,7 @@ export function useGameRoom() {
     joinRoom,
     toggleReady,
     updateMode,
+    updatePunishment,
     startCountdown,
     startGame,
     reportLoss,

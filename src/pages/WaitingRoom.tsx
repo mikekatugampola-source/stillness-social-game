@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useGameRoomContext } from "@/context/GameRoomContext";
 import type { GameMode } from "@/lib/game-types";
+import { punishments } from "@/lib/punishments";
 
 const modes: { id: GameMode; label: string; subtitle: string }[] = [
   { id: "classic", label: "Classic", subtitle: "Pure willpower" },
@@ -13,7 +15,9 @@ const modes: { id: GameMode; label: string; subtitle: string }[] = [
 
 const WaitingRoom = () => {
   const navigate = useNavigate();
-  const { room, playerId, toggleReady, updateMode, startCountdown, leaveRoom } = useGameRoomContext();
+  const { room, playerId, toggleReady, updateMode, updatePunishment, startCountdown, leaveRoom } =
+    useGameRoomContext();
+  const [customPunishment, setCustomPunishment] = useState("");
 
   useEffect(() => {
     if (!room) navigate("/", { replace: true });
@@ -28,14 +32,25 @@ const WaitingRoom = () => {
   if (!room) return null;
 
   const players = room.players;
-  const me = players.find((player) => player.playerId === playerId);
+  const me = players.find((p) => p.playerId === playerId);
   const isHost = me?.isHost ?? room.hostId === playerId;
-  const canStart = players.length >= 2 && players.every((player) => player.isReady);
   const currentMode = room.mode;
+  const hasPunishment = currentMode !== "punishment" || !!room.punishmentText?.trim();
+  const canStart = players.length >= 2 && players.every((p) => p.isReady) && hasPunishment;
 
   const handleLeave = () => {
     leaveRoom();
     navigate("/");
+  };
+
+  const handleSelectPreset = (text: string) => {
+    setCustomPunishment("");
+    void updatePunishment(text);
+  };
+
+  const handleCustomSubmit = () => {
+    const trimmed = customPunishment.trim();
+    if (trimmed) void updatePunishment(trimmed);
   };
 
   return (
@@ -75,6 +90,67 @@ const WaitingRoom = () => {
             <p className="text-caption">Mode</p>
             <p className="mt-1 text-lg font-semibold capitalize text-foreground">{currentMode}</p>
           </div>
+        )}
+
+        {/* Punishment setup — host picks, all players see */}
+        {currentMode === "punishment" && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="w-full"
+          >
+            {isHost ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-caption uppercase tracking-widest">Choose Punishment</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={customPunishment}
+                    onChange={(e) => setCustomPunishment(e.target.value)}
+                    placeholder="Type a custom punishment…"
+                    className="flex-1"
+                    onKeyDown={(e) => e.key === "Enter" && handleCustomSubmit()}
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleCustomSubmit}
+                    disabled={!customPunishment.trim()}
+                  >
+                    Set
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                  {punishments.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => handleSelectPreset(p)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-all ${
+                        room.punishmentText === p
+                          ? "border-foreground bg-foreground/10 text-foreground"
+                          : "border-border bg-secondary text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="glass-card w-full text-center">
+                <p className="text-caption text-[10px] uppercase tracking-widest mb-1">Punishment</p>
+                <p className="text-sm font-medium text-foreground">
+                  {room.punishmentText || "Host is choosing…"}
+                </p>
+              </div>
+            )}
+
+            {room.punishmentText && isHost && (
+              <div className="mt-2 rounded-lg border border-foreground/20 bg-foreground/5 px-3 py-2 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Selected</p>
+                <p className="text-xs font-medium text-foreground">{room.punishmentText}</p>
+              </div>
+            )}
+          </motion.div>
         )}
 
         <div className="w-full">
@@ -125,9 +201,7 @@ const WaitingRoom = () => {
           {isHost && (
             <>
               <Button
-                onClick={() => {
-                  void startCountdown();
-                }}
+                onClick={() => void startCountdown()}
                 disabled={!canStart}
                 size="lg"
                 className="w-full"
@@ -136,7 +210,9 @@ const WaitingRoom = () => {
               </Button>
               {!canStart && (
                 <p className="text-center text-xs text-muted-foreground">
-                  Waiting for all players to be ready
+                  {!hasPunishment
+                    ? "Select a punishment to start"
+                    : "Waiting for all players to be ready"}
                 </p>
               )}
             </>
@@ -157,6 +233,7 @@ const WaitingRoom = () => {
             <p>playerCount: {room.players.length}</p>
             <p>mode: {room.mode}</p>
             <p>hostId: {room.hostId}</p>
+            <p>punishmentText: {room.punishmentText ?? "(none)"}</p>
             <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(room.players, null, 2)}</pre>
           </div>
         </details>
