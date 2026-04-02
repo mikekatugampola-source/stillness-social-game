@@ -10,10 +10,12 @@ const ActiveGame = () => {
   const { room, playerId, players, reportLoss } = useGameRoomContext();
 
   const [elapsed, setElapsed] = useState(0);
-  const [gameActive, setGameActive] = useState(false); // starts false for settle delay
+  const [gameActive, setGameActive] = useState(false);
   const [settling, setSettling] = useState(true);
+  const [settleProgress, setSettleProgress] = useState(0);
   const [movementDetected, setMovementDetected] = useState(false);
   const startTimeRef = useRef(Date.now());
+  const settleDurationRef = useRef(2000 + Math.random() * 600); // 2.0–2.6s
 
   const me = players.find((p) => p.playerId === playerId);
   const playerName = me?.displayName ?? "You";
@@ -23,13 +25,27 @@ const ActiveGame = () => {
       navigate("/", { replace: true });
       return;
     }
-    // Settle delay: wait 750ms before activating motion monitoring
+    const duration = settleDurationRef.current;
+    const settleStart = Date.now();
+
+    // Animate progress during settle
+    const progressInterval = setInterval(() => {
+      const pct = Math.min(1, (Date.now() - settleStart) / duration);
+      setSettleProgress(pct);
+    }, 50);
+
     const timer = setTimeout(() => {
+      clearInterval(progressInterval);
+      setSettleProgress(1);
       setSettling(false);
       setGameActive(true);
       startTimeRef.current = Date.now();
-    }, 750);
-    return () => clearTimeout(timer);
+    }, duration);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(progressInterval);
+    };
   }, [room, navigate]);
 
   // Timer
