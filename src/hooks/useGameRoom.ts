@@ -96,6 +96,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     countdownStartedAt: nextRoom.countdownStartedAt ?? null,
     endedAt: nextRoom.endedAt ?? null,
     punishmentText: nextRoom.punishmentText ?? null,
+    drinksText: nextRoom.drinksText ?? null,
   };
 }
 
@@ -116,6 +117,7 @@ function createRoomState(
     countdownStartedAt: null,
     endedAt: null,
     punishmentText: null,
+    drinksText: mode === "drinks" ? "Loser buys the round" : null,
   });
 }
 
@@ -414,6 +416,7 @@ export function useGameRoom() {
       const nextRoom = normalizeRoom({
         ...currentRoom,
         mode,
+        drinksText: mode === "drinks" ? (currentRoom.drinksText || "Loser buys the round") : currentRoom.drinksText,
       });
 
       setRoomState(nextRoom);
@@ -436,6 +439,22 @@ export function useGameRoom() {
         punishmentText,
       });
 
+      setRoomState(nextRoom);
+      await publishRoomState(channel, nextRoom);
+    },
+    [publishRoomState, setRoomState]
+  );
+
+  const updateDrinksText = useCallback(
+    async (drinksText: string) => {
+      const channel = channelRef.current;
+      const currentRoom = roomRef.current;
+      const localPlayer = localPlayerRef.current;
+
+      if (!channel || !currentRoom || !localPlayer) return;
+      if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
+
+      const nextRoom = normalizeRoom({ ...currentRoom, drinksText });
       setRoomState(nextRoom);
       await publishRoomState(channel, nextRoom);
     },
@@ -526,6 +545,7 @@ export function useGameRoom() {
     toggleReady,
     updateMode,
     updatePunishment,
+    updateDrinksText,
     startCountdown,
     startGame,
     reportLoss,
