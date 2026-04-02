@@ -9,6 +9,7 @@ import CreateTable from "./pages/CreateTable";
 import JoinTable from "./pages/JoinTable";
 import WaitingRoom from "./pages/WaitingRoom";
 import Countdown from "./pages/Countdown";
+import MotionPermission from "./pages/MotionPermission";
 import ActiveGame from "./pages/ActiveGame";
 import ResultScreen from "./pages/ResultScreen";
 import NotFound from "./pages/NotFound";
