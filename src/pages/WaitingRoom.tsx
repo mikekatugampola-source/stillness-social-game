@@ -50,7 +50,7 @@ const WaitingRoom = () => {
   const handleLeave = () => { leaveRoom(); navigate("/"); };
 
   return (
-    <div className="screen-center">
+    <div className="min-h-[100dvh] w-full overflow-y-auto px-4 py-8 pb-[env(safe-area-inset-bottom,2rem)] flex justify-center">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
