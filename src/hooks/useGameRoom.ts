@@ -96,6 +96,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     countdownStartedAt: nextRoom.countdownStartedAt ?? null,
     endedAt: nextRoom.endedAt ?? null,
     punishmentText: nextRoom.punishmentText ?? null,
+    drinksText: nextRoom.drinksText ?? null,
   };
 }
 
