@@ -523,6 +523,7 @@ export function useGameRoom() {
     joinRoom,
     toggleReady,
     updateMode,
+    updatePunishment,
     startCountdown,
     startGame,
     reportLoss,
