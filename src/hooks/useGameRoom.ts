@@ -519,6 +519,8 @@ export function useGameRoom() {
       const currentRoom = roomRef.current;
 
       if (!channel || !currentRoom) return;
+      // Prevent duplicate reports
+      if (currentRoom.status === "finished") return;
 
       const nextRoom = normalizeRoom({
         ...currentRoom,
@@ -529,7 +531,8 @@ export function useGameRoom() {
       });
 
       setRoomState(nextRoom);
-      await publishRoomState(channel, nextRoom);
+      // Use dedicated game_finished event so all devices handle it explicitly
+      await publishRoomState(channel, nextRoom, "game_finished");
     },
     [publishRoomState, setRoomState]
   );
