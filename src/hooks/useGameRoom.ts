@@ -14,7 +14,7 @@ type PresenceMeta = {
   is_ready?: boolean;
 };
 
-type RoomBroadcastEvent = "room_state" | "room_sync_request" | "game_start" | "game_active";
+type RoomBroadcastEvent = "room_state" | "room_sync_request" | "game_start" | "game_active" | "game_finished";
 type RoomChannel = ReturnType<typeof supabase.channel>;
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
