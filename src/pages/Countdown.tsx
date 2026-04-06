@@ -38,9 +38,9 @@ const Countdown = () => {
       setCount(remaining);
 
       // Play tick sound on each new number
-      if (lastTickedCount.current !== remaining && remaining > 0) {
+        if (lastTickedCount.current !== remaining && remaining > 0) {
         lastTickedCount.current = remaining;
-        playCountdownTick();
+          void playCountdownTick(`countdown-${remaining}`);
       }
     };
 
@@ -53,14 +53,13 @@ const Countdown = () => {
   useEffect(() => {
     if (count > 0 || !isHost || hasStartedGame.current) return;
     hasStartedGame.current = true;
-    playGameStartSound();
     void startGame();
   }, [count, isHost, startGame]);
 
   // All players navigate when status becomes active
   useEffect(() => {
     if (room?.status === "active") {
-      playGameStartSound();
+      void playGameStartSound("room-status-active");
       navigate("/game", { replace: true });
     }
   }, [room?.status, navigate]);

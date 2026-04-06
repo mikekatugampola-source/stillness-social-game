@@ -18,5 +18,5 @@ function triggerVibration() {
 
 export function triggerGameOverFeedback() {
   triggerVibration();
-  playGameOverSound();
+  void playGameOverSound("game-over-feedback");
 }

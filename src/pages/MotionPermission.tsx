@@ -31,7 +31,7 @@ const MotionPermission = () => {
     let granted = true;
 
     // Unlock audio from this user gesture
-    unlockAudio();
+    await unlockAudio("motion-permission-enable");
 
     if (
       typeof DeviceOrientationEvent !== "undefined" &&
