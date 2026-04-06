@@ -16,6 +16,7 @@ const ActiveGame = () => {
   const [settleProgress, setSettleProgress] = useState(0);
   const [movementDetected, setMovementDetected] = useState(false);
   const startTimeRef = useRef(Date.now());
+  const hasTriggeredFeedback = useRef(false);
   // 2.5–3.0s settle to give time to place phone down
   const settleDurationRef = useRef(2500 + Math.random() * 500);
 
@@ -59,30 +60,41 @@ const ActiveGame = () => {
   }, [gameActive]);
 
   const handleMotion = useCallback(() => {
-    if (!gameActive) return;
+    if (!gameActive || movementDetected) return;
     setGameActive(false);
     setMovementDetected(true);
     triggerGameOverFeedback();
+    hasTriggeredFeedback.current = true;
     reportLoss(playerId, playerName);
-  }, [gameActive, reportLoss, playerId, playerName]);
+  }, [gameActive, movementDetected, reportLoss, playerId, playerName]);
 
   const { isMonitoring, debug } = useMotionDetection(gameActive, handleMotion);
 
   // Listen for game finish — trigger feedback on ALL devices
   useEffect(() => {
     if (room?.status === "finished") {
-      triggerGameOverFeedback();
-      navigate("/result", {
-        replace: true,
-        state: { survivalTime: elapsed },
-      });
+      // Only trigger feedback once per game
+      if (!hasTriggeredFeedback.current) {
+        triggerGameOverFeedback();
+        hasTriggeredFeedback.current = true;
+      }
+      // Small delay so vibration/sound play before navigation
+      const timeout = setTimeout(() => {
+        navigate("/result", {
+          replace: true,
+          state: { survivalTime: elapsed },
+        });
+      }, 400);
+      return () => clearTimeout(timeout);
     }
   }, [room?.status, navigate, elapsed]);
 
   const handleEndGame = () => {
+    if (movementDetected) return;
     setGameActive(false);
     setMovementDetected(true);
     triggerGameOverFeedback();
+    hasTriggeredFeedback.current = true;
     reportLoss(playerId, playerName);
   };
 

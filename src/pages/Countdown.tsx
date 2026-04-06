@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameRoomContext } from "@/context/GameRoomContext";
@@ -15,6 +15,7 @@ const Countdown = () => {
   const navigate = useNavigate();
   const { room, playerId, startGame } = useGameRoomContext();
   const [count, setCount] = useState(() => getRemainingCount(room?.countdownStartedAt ?? null));
+  const hasStartedGame = useRef(false);
 
   const isHost =
     room?.players.some((player) => player.playerId === playerId && player.isHost) ?? false;
@@ -25,6 +26,7 @@ const Countdown = () => {
     }
   }, [room, navigate]);
 
+  // Sync countdown from shared timestamp
   useEffect(() => {
     if (room?.status !== "countdown") return;
 
@@ -37,11 +39,14 @@ const Countdown = () => {
     return () => window.clearInterval(timer);
   }, [room?.countdownStartedAt, room?.status]);
 
+  // Host starts game when countdown reaches 0
   useEffect(() => {
-    if (count > 0 || !isHost) return;
+    if (count > 0 || !isHost || hasStartedGame.current) return;
+    hasStartedGame.current = true;
     void startGame();
   }, [count, isHost, startGame]);
 
+  // All players navigate when status becomes active
   useEffect(() => {
     if (room?.status === "active") {
       navigate("/game", { replace: true });
