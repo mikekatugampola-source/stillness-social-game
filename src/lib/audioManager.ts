@@ -1,10 +1,3 @@
-/**
- * Centralized audio manager.
- * - Preloads bundled audio assets at app startup
- * - Unlocks and reuses a single audio session after the first user gesture
- * - Plays sounds from shared game-state transitions with detailed logging
- */
-
 type SoundId = "countdown" | "gameStart" | "gameOver" | "success" | "fail";
 type KnownAudioContextState = AudioContextState | "interrupted" | "unavailable";
 
@@ -14,6 +7,10 @@ type AudioDebugState = {
   preloadStarted: boolean;
   loaded: Partial<Record<SoundId, boolean>>;
   lastTrigger: string | null;
+  htmlPrimed: boolean;
+  webAudioPrimed: boolean;
+  lastPlayResult: string | null;
+  lastError: string | null;
 };
 
 declare global {
@@ -31,9 +28,11 @@ const SOUND_FILES: Record<SoundId, string> = {
   fail: "audio/fail.wav",
 };
 
+const SOUND_IDS = Object.keys(SOUND_FILES) as SoundId[];
 const htmlAudioElements = new Map<SoundId, HTMLAudioElement>();
+const htmlLoadPromises = new Map<SoundId, Promise<void>>();
+const htmlLoaded = new Set<SoundId>();
 const audioBuffers = new Map<SoundId, AudioBuffer>();
-const activeHtmlAudio = new Set<HTMLAudioElement>();
 
 const debugState: AudioDebugState = {
   unlocked: false,
@@ -41,11 +40,17 @@ const debugState: AudioDebugState = {
   preloadStarted: false,
   loaded: {},
   lastTrigger: null,
+  htmlPrimed: false,
+  webAudioPrimed: false,
+  lastPlayResult: null,
+  lastError: null,
 };
 
 let audioCtx: AudioContext | null = null;
 let preloadPromise: Promise<void> | null = null;
+let decodePromise: Promise<void> | null = null;
 let unlockPromise: Promise<boolean> | null = null;
+let htmlPrimePromise: Promise<boolean> | null = null;
 
 function syncDebugState() {
   if (typeof window !== "undefined") {
@@ -57,6 +62,10 @@ function syncDebugState() {
 }
 
 function setLoaded(soundId: SoundId, loaded: boolean) {
+  if (debugState.loaded[soundId] === loaded) {
+    return;
+  }
+
   debugState.loaded = {
     ...debugState.loaded,
     [soundId]: loaded,
@@ -67,6 +76,10 @@ function setLoaded(soundId: SoundId, loaded: boolean) {
 function updateDebugState(partial: Partial<AudioDebugState>) {
   Object.assign(debugState, partial);
   syncDebugState();
+}
+
+function rememberError(scope: string, error: unknown) {
+  updateDebugState({ lastError: `${scope}:${formatError(error)}` });
 }
 
 function formatError(error: unknown): string {
@@ -91,9 +104,85 @@ function logError(message: string, details?: Record<string, unknown>) {
   console.error(`[audio] ${message}`);
 }
 
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function getSoundUrl(soundId: SoundId): string {
   const baseUrl = (import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
   return `${baseUrl}${SOUND_FILES[soundId]}`;
+}
+
+function getOrCreateHtmlAudio(soundId: SoundId): HTMLAudioElement {
+  const existing = htmlAudioElements.get(soundId);
+  if (existing) {
+    return existing;
+  }
+
+  const url = getSoundUrl(soundId);
+  const media = new Audio(url);
+  media.preload = "auto";
+  media.setAttribute("playsinline", "true");
+  media.setAttribute("webkit-playsinline", "true");
+  media.volume = 1;
+  media.load();
+  htmlAudioElements.set(soundId, media);
+  return media;
+}
+
+function ensureHtmlLoaded(soundId: SoundId): Promise<void> {
+  const existingPromise = htmlLoadPromises.get(soundId);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const media = getOrCreateHtmlAudio(soundId);
+  const url = getSoundUrl(soundId);
+
+  if (htmlLoaded.has(soundId) || media.readyState >= 2) {
+    htmlLoaded.add(soundId);
+    setLoaded(soundId, true);
+    return Promise.resolve();
+  }
+
+  const promise = new Promise<void>((resolve) => {
+    const cleanup = () => {
+      media.removeEventListener("loadeddata", handleLoaded);
+      media.removeEventListener("error", handleError);
+    };
+
+    const handleLoaded = () => {
+      cleanup();
+      htmlLoaded.add(soundId);
+      setLoaded(soundId, true);
+      logInfo("audio file loaded", { soundId, url, channel: "html-audio" });
+      resolve();
+    };
+
+    const handleError = () => {
+      cleanup();
+      if (!audioBuffers.has(soundId)) {
+        setLoaded(soundId, false);
+      }
+      rememberError(`html-audio:${soundId}`, media.error?.message ?? media.error?.code ?? "unknown");
+      logError("audio file failed", {
+        soundId,
+        url,
+        channel: "html-audio",
+        code: media.error?.code ?? "unknown",
+      });
+      resolve();
+    };
+
+    media.addEventListener("loadeddata", handleLoaded, { once: true });
+    media.addEventListener("error", handleError, { once: true });
+    media.load();
+  });
+
+  htmlLoadPromises.set(soundId, promise);
+  return promise;
 }
 
 function getCtx(): AudioContext | null {
@@ -112,9 +201,18 @@ function getCtx(): AudioContext | null {
 
     try {
       audioCtx = new AudioContextCtor();
+      audioCtx.addEventListener("statechange", () => {
+        if (!audioCtx) {
+          return;
+        }
+
+        updateDebugState({ contextState: audioCtx.state as KnownAudioContextState });
+        logInfo("audio context state changed", { state: audioCtx.state });
+      });
       logInfo("audio context created", { state: audioCtx.state });
     } catch (error) {
       updateDebugState({ contextState: "unavailable" });
+      rememberError("context-create", error);
       logError("audio context creation failed", { error: formatError(error) });
       return null;
     }
@@ -124,40 +222,12 @@ function getCtx(): AudioContext | null {
   return audioCtx;
 }
 
-async function preloadSound(soundId: SoundId, ctx: AudioContext | null) {
-  const url = getSoundUrl(soundId);
-
-  if (!htmlAudioElements.has(soundId)) {
-    const media = new Audio(url);
-    media.preload = "auto";
-    media.setAttribute("playsinline", "true");
-    media.addEventListener(
-      "loadeddata",
-      () => {
-        logInfo("audio file loaded", { soundId, url, channel: "html-audio" });
-      },
-      { once: true }
-    );
-    media.addEventListener(
-      "error",
-      () => {
-        logError("audio file failed", {
-          soundId,
-          url,
-          channel: "html-audio",
-          code: media.error?.code ?? "unknown",
-        });
-      },
-      { once: true }
-    );
-    media.load();
-    htmlAudioElements.set(soundId, media);
-  }
-
-  if (!ctx) {
-    setLoaded(soundId, true);
+async function decodeSound(soundId: SoundId, ctx: AudioContext) {
+  if (audioBuffers.has(soundId)) {
     return;
   }
+
+  const url = getSoundUrl(soundId);
 
   try {
     const response = await fetch(url, { cache: "force-cache" });
@@ -171,7 +241,10 @@ async function preloadSound(soundId: SoundId, ctx: AudioContext | null) {
     setLoaded(soundId, true);
     logInfo("audio file loaded", { soundId, url, channel: "web-audio" });
   } catch (error) {
-    setLoaded(soundId, false);
+    if (!htmlLoaded.has(soundId)) {
+      setLoaded(soundId, false);
+    }
+    rememberError(`web-audio:${soundId}`, error);
     logError("audio file failed", {
       soundId,
       url,
@@ -186,47 +259,153 @@ export function preloadAudio(): Promise<void> {
     return preloadPromise;
   }
 
-  preloadPromise = Promise.all(
-    (Object.keys(SOUND_FILES) as SoundId[]).map((soundId) => preloadSound(soundId, getCtx()))
-  )
-    .then(() => {
-      updateDebugState({ preloadStarted: true });
-    })
+  updateDebugState({ preloadStarted: true });
+  logInfo("audio preload started");
+
+  preloadPromise = Promise.all(SOUND_IDS.map((soundId) => ensureHtmlLoaded(soundId)))
+    .then(() => undefined)
     .catch((error) => {
       preloadPromise = null;
-      updateDebugState({ preloadStarted: true });
+      rememberError("preload", error);
       logError("audio preload failed", { error: formatError(error) });
     });
 
-  updateDebugState({ preloadStarted: true });
-  logInfo("audio preload started");
   return preloadPromise;
 }
 
-function markUnlocked(source: string, unlocked: boolean) {
+function preloadDecodedAudio(): Promise<void> {
+  if (decodePromise) {
+    return decodePromise;
+  }
+
   const ctx = getCtx();
+  if (!ctx) {
+    return Promise.resolve();
+  }
+
+  decodePromise = Promise.all(SOUND_IDS.map((soundId) => decodeSound(soundId, ctx)))
+    .then(() => undefined)
+    .catch((error) => {
+      decodePromise = null;
+      rememberError("decode", error);
+      logError("audio decode preload failed", { error: formatError(error) });
+    });
+
+  return decodePromise;
+}
+
+async function primeWebAudio(ctx: AudioContext): Promise<boolean> {
+  try {
+    if (ctx.state !== "running") {
+      await ctx.resume();
+    }
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.00001, ctx.currentTime);
+
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain).connect(ctx.destination);
+    source.start(ctx.currentTime);
+
+    updateDebugState({
+      webAudioPrimed: ctx.state === "running",
+      contextState: ctx.state as KnownAudioContextState,
+    });
+
+    return ctx.state === "running";
+  } catch (error) {
+    rememberError("web-prime", error);
+    logError("audio web prime failed", {
+      state: ctx.state,
+      error: formatError(error),
+    });
+    updateDebugState({
+      webAudioPrimed: false,
+      contextState: ctx.state as KnownAudioContextState,
+    });
+    return false;
+  }
+}
+
+async function primeHtmlAudio(): Promise<boolean> {
+  if (debugState.htmlPrimed) {
+    return true;
+  }
+
+  if (htmlPrimePromise) {
+    return htmlPrimePromise;
+  }
+
+  htmlPrimePromise = (async () => {
+    const preload = preloadAudio();
+    await Promise.race([preload, wait(800)]);
+
+    const results = await Promise.allSettled(
+      SOUND_IDS.map(async (soundId) => {
+        const media = getOrCreateHtmlAudio(soundId);
+
+        try {
+          media.pause();
+          try {
+            media.currentTime = 0;
+          } catch {
+            // Ignore if currentTime cannot be reset yet
+          }
+          media.muted = true;
+          media.volume = 0;
+          const playPromise = media.play();
+          if (playPromise) {
+            await Promise.race([playPromise, wait(400)]);
+          }
+          media.pause();
+          try {
+            media.currentTime = 0;
+          } catch {
+            // Ignore if currentTime cannot be reset yet
+          }
+          return true;
+        } catch (error) {
+          rememberError(`html-prime:${soundId}`, error);
+          logError("audio prime failed", {
+            soundId,
+            channel: "html-audio",
+            error: formatError(error),
+          });
+          return false;
+        } finally {
+          media.muted = false;
+          media.volume = 1;
+        }
+      })
+    );
+
+    const primed = results.some((result) => result.status === "fulfilled" && result.value);
+    updateDebugState({ htmlPrimed: primed });
+    return primed;
+  })().finally(() => {
+    htmlPrimePromise = null;
+  });
+
+  return htmlPrimePromise;
+}
+
+function markUnlocked(source: string, unlocked: boolean) {
   updateDebugState({
     unlocked,
-    contextState: (ctx?.state as KnownAudioContextState | undefined) ?? "unavailable",
+    contextState: (audioCtx?.state as KnownAudioContextState | undefined) ?? "unavailable",
   });
   logInfo(`audio unlocked = ${String(unlocked)}`, {
     source,
-    state: ctx?.state ?? "unavailable",
+    state: audioCtx?.state ?? "unavailable",
   });
   return unlocked;
 }
 
-/** Call once from a user-gesture handler (e.g. "Ready", "Start", "Enable") */
 export async function unlockAudio(source = "unknown"): Promise<boolean> {
-  const ctx = getCtx();
-  if (!ctx) {
-    return false;
-  }
-
-  void preloadAudio();
-
-  if (debugState.unlocked && ctx.state === "running") {
-    logInfo("audio unlock reused", { source, state: ctx.state });
+  if (debugState.unlocked && (audioCtx?.state === "running" || debugState.htmlPrimed)) {
+    logInfo("audio unlock reused", { source, state: audioCtx?.state ?? "unavailable" });
     return true;
   }
 
@@ -234,32 +413,32 @@ export async function unlockAudio(source = "unknown"): Promise<boolean> {
     return unlockPromise;
   }
 
+  const ctx = getCtx();
+
   unlockPromise = (async () => {
-    try {
-      if (ctx.state !== "running") {
-        await ctx.resume();
-      }
+    const [webPrimed, htmlPrimed] = await Promise.all([
+      ctx ? primeWebAudio(ctx) : Promise.resolve(false),
+      primeHtmlAudio(),
+    ]);
 
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      oscillator.frequency.setValueAtTime(1, ctx.currentTime);
-      oscillator.connect(gain).connect(ctx.destination);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.01);
+    if (webPrimed) {
+      void preloadDecodedAudio();
+    }
 
-      return markUnlocked(source, ctx.state === "running");
-    } catch (error) {
+    return markUnlocked(source, webPrimed || htmlPrimed);
+  })()
+    .catch((error) => {
+      rememberError("unlock", error);
       logError("audio unlock failed", {
         source,
-        state: ctx.state,
+        state: ctx?.state ?? "unavailable",
         error: formatError(error),
       });
       return markUnlocked(source, false);
-    } finally {
+    })
+    .finally(() => {
       unlockPromise = null;
-    }
-  })();
+    });
 
   return unlockPromise;
 }
@@ -278,55 +457,67 @@ async function playViaWebAudio(soundId: SoundId): Promise<boolean> {
     gain.gain.setValueAtTime(1, ctx.currentTime);
     source.buffer = buffer;
     source.connect(gain).connect(ctx.destination);
-    source.start(0);
+    source.start(ctx.currentTime);
+    updateDebugState({
+      lastPlayResult: `${soundId}:web-audio:ok`,
+      lastError: null,
+    });
     logInfo("play() succeeded", { soundId, method: "web-audio" });
     return true;
   } catch (error) {
+    const errorMessage = formatError(error);
+    updateDebugState({
+      lastPlayResult: `${soundId}:web-audio:failed`,
+      lastError: errorMessage,
+    });
     logError("play() failed", {
       soundId,
       method: "web-audio",
-      error: formatError(error),
+      error: errorMessage,
     });
     return false;
   }
 }
 
 async function playViaHtmlAudio(soundId: SoundId): Promise<boolean> {
-  const base = htmlAudioElements.get(soundId);
-
-  if (!base) {
-    return false;
-  }
-
-  const playback = new Audio(base.src);
-  playback.preload = "auto";
-  playback.setAttribute("playsinline", "true");
-  activeHtmlAudio.add(playback);
-
-  const cleanup = () => {
-    activeHtmlAudio.delete(playback);
-  };
-
-  playback.addEventListener("ended", cleanup, { once: true });
-  playback.addEventListener("error", cleanup, { once: true });
+  const media = getOrCreateHtmlAudio(soundId);
 
   try {
-    await playback.play();
+    media.pause();
+    try {
+      media.currentTime = 0;
+    } catch {
+      // Ignore if currentTime cannot be reset yet
+    }
+    media.muted = false;
+    media.volume = 1;
+    const playPromise = media.play();
+    if (playPromise) {
+      await playPromise;
+    }
+    updateDebugState({
+      lastPlayResult: `${soundId}:html-audio:ok`,
+      lastError: null,
+    });
     logInfo("play() succeeded", { soundId, method: "html-audio" });
     return true;
   } catch (error) {
-    cleanup();
+    const errorMessage = formatError(error);
+    updateDebugState({
+      lastPlayResult: `${soundId}:html-audio:failed`,
+      lastError: errorMessage,
+    });
     logError("play() failed", {
       soundId,
       method: "html-audio",
-      error: formatError(error),
+      error: errorMessage,
     });
     return false;
   }
 }
 
 async function playSound(soundId: SoundId, trigger: string): Promise<boolean> {
-  const ctx = getCtx();
+  const ctx = audioCtx ?? getCtx();
   updateDebugState({
     lastTrigger: `${soundId}:${trigger}`,
     contextState: (ctx?.state as KnownAudioContextState | undefined) ?? "unavailable",
@@ -339,17 +530,18 @@ async function playSound(soundId: SoundId, trigger: string): Promise<boolean> {
     contextState: ctx?.state ?? "unavailable",
   });
 
-  if (!audioBuffers.size || !htmlAudioElements.size) {
-    await preloadAudio();
+  void preloadAudio();
+  if (!audioBuffers.has(soundId) && debugState.unlocked) {
+    void preloadDecodedAudio();
   }
 
-  if (!debugState.unlocked || ctx?.state !== "running") {
+  if (!debugState.unlocked) {
     const unlocked = await unlockAudio(`play:${soundId}:${trigger}`);
     if (!unlocked) {
       logError("audio playback blocked before play()", {
         soundId,
         trigger,
-        contextState: ctx?.state ?? "unavailable",
+        contextState: audioCtx?.state ?? "unavailable",
       });
     }
   }
@@ -359,7 +551,15 @@ async function playSound(soundId: SoundId, trigger: string): Promise<boolean> {
     return true;
   }
 
-  return playViaHtmlAudio(soundId);
+  const playedViaHtmlAudio = await playViaHtmlAudio(soundId);
+  if (!playedViaHtmlAudio) {
+    updateDebugState({
+      lastPlayResult: `${soundId}:blocked`,
+      lastError: debugState.lastError ?? "No playback path succeeded",
+    });
+  }
+
+  return playedViaHtmlAudio;
 }
 
 export function startAudioSession(): () => void {
@@ -367,6 +567,7 @@ export function startAudioSession(): () => void {
     return () => undefined;
   }
 
+  syncDebugState();
   void preloadAudio();
 
   const handleInteraction = () => {
@@ -374,36 +575,43 @@ export function startAudioSession(): () => void {
   };
 
   const handleVisibilityChange = () => {
-    const ctx = getCtx();
-    if (document.visibilityState === "visible" && ctx && debugState.unlocked && ctx.state !== "running") {
+    if (document.visibilityState === "visible" && debugState.unlocked && audioCtx && audioCtx.state !== "running") {
       void unlockAudio("visibilitychange");
     }
   };
 
   window.addEventListener("pointerdown", handleInteraction, { capture: true, passive: true });
   window.addEventListener("touchstart", handleInteraction, { capture: true, passive: true });
+  window.addEventListener("click", handleInteraction, { capture: true, passive: true });
   window.addEventListener("keydown", handleInteraction, { capture: true });
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
   return () => {
     window.removeEventListener("pointerdown", handleInteraction, true);
     window.removeEventListener("touchstart", handleInteraction, true);
+    window.removeEventListener("click", handleInteraction, true);
     window.removeEventListener("keydown", handleInteraction, true);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   };
 }
 
-/** Short tick sound for countdown numbers */
 export function playCountdownTick(trigger = "countdown-state-change"): Promise<boolean> {
   return playSound("countdown", trigger);
 }
 
-/** Rising tone for game start */
 export function playGameStartSound(trigger = "game-start-state-change"): Promise<boolean> {
   return playSound("gameStart", trigger);
 }
 
-/** Two-tone descending alert for game over */
 export function playGameOverSound(trigger = "game-over-state-change"): Promise<boolean> {
   return playSound("gameOver", trigger);
 }
+
+export function getAudioDebugState(): AudioDebugState {
+  return {
+    ...debugState,
+    loaded: { ...debugState.loaded },
+  };
+}
+
+syncDebugState();
