@@ -30,8 +30,7 @@ const MotionPermission = () => {
     setLoading(true);
     let granted = true;
 
-    // Unlock audio from this user gesture
-    await unlockAudio("motion-permission-enable");
+    const unlockPromise = unlockAudio("motion-permission-enable");
 
     if (
       typeof DeviceOrientationEvent !== "undefined" &&
@@ -61,6 +60,7 @@ const MotionPermission = () => {
     setLoading(false);
 
     if (granted) {
+      await unlockPromise;
       setStatus("granted");
       setTimeout(() => navigate("/countdown", { replace: true }), 300);
     } else {

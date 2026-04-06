@@ -52,12 +52,12 @@ const WaitingRoom = () => {
 
   // Unlock audio on any user interaction in waiting room
   const handleReady = async () => {
-    await unlockAudio("waiting-room-ready");
+    void unlockAudio("waiting-room-ready");
     await toggleReady();
   };
 
   const handleStart = async () => {
-    await unlockAudio("waiting-room-start");
+    void unlockAudio("waiting-room-start");
     await startCountdown();
   };
 

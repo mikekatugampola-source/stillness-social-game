@@ -69,6 +69,7 @@ const ActiveGame = () => {
   }, [gameActive, movementDetected, reportLoss, playerId, playerName]);
 
   const { isMonitoring, debug } = useMotionDetection(gameActive, handleMotion);
+  const audioDebug = typeof window !== "undefined" ? window.__dontTouchAudioDebug : undefined;
 
   // Listen for game finish — trigger feedback on ALL devices
   useEffect(() => {
@@ -114,7 +115,7 @@ const ActiveGame = () => {
 
       {/* Debug overlay - dev only */}
       {import.meta.env.DEV && (
-        <div className="absolute right-3 top-12 rounded-md bg-muted/80 px-3 py-2 text-left text-[10px] font-mono text-muted-foreground backdrop-blur max-w-[180px]">
+        <div className="absolute right-3 top-12 rounded-md bg-muted/80 px-3 py-2 text-left text-[10px] font-mono text-muted-foreground backdrop-blur max-w-[220px]">
           <div>native: {debug.isNative ? "YES" : "no"}</div>
           <div>perm: {debug.permissionState}</div>
           <div>listeners: {debug.listenersActive ? "YES" : "no"}</div>
@@ -136,6 +137,16 @@ const ActiveGame = () => {
           <div>accel thresh: {debug.accelThreshold}</div>
           <div>tilt thresh: {debug.tiltThreshold}</div>
           <div>triggered: {debug.triggered ? "YES" : "no"}</div>
+          <div className="mt-1 border-t border-muted-foreground/20 pt-1">
+            audio unlocked: {audioDebug?.unlocked ? "YES" : "no"}
+          </div>
+          <div>audio ctx: {audioDebug?.contextState ?? "unknown"}</div>
+          <div>audio html: {audioDebug?.htmlPrimed ? "YES" : "no"}</div>
+          <div>audio web: {audioDebug?.webAudioPrimed ? "YES" : "no"}</div>
+          <div>audio loaded: {Object.values(audioDebug?.loaded ?? {}).filter(Boolean).length}/5</div>
+          <div>audio trig: {audioDebug?.lastTrigger ?? "-"}</div>
+          <div>audio play: {audioDebug?.lastPlayResult ?? "-"}</div>
+          <div>audio err: {audioDebug?.lastError ?? "-"}</div>
         </div>
       )}
 
