@@ -280,6 +280,16 @@ export function useGameRoom() {
               setRoomState(mergedRoom);
             }
           })
+          .on("broadcast", { event: "game_finished" }, ({ payload }) => {
+            const mergedRoom = mergeRoom(roomRef.current, {
+              ...(payload as Partial<GameRoom>),
+              status: "finished",
+            });
+
+            if (mergedRoom) {
+              setRoomState(mergedRoom);
+            }
+          })
           .subscribe(async (status) => {
             if (status === "SUBSCRIBED") {
               const currentPlayer = localPlayerRef.current;
