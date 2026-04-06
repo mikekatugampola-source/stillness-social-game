@@ -159,9 +159,10 @@ const ActiveGame = () => {
         {movementDetected ? (
           <span className="text-2xl font-bold text-destructive">MOVEMENT DETECTED</span>
         ) : settling ? (
-          <div className="flex flex-col items-center gap-6">
-            <p className="text-body text-lg text-foreground">Place your phone face down</p>
-            <div className="relative w-16 h-16">
+          <div className="flex flex-col items-center gap-8">
+            <h1 className="text-4xl font-bold text-foreground">Ready?</h1>
+            <p className="text-lg text-muted-foreground">Phone face up. Don't move.</p>
+            <div className="relative w-12 h-12">
               <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
                 <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
                 <circle
@@ -180,9 +181,8 @@ const ActiveGame = () => {
           <>
             <span className="text-timer text-foreground">{formatTime(elapsed)}</span>
             <p className={`text-caption text-sm ${isMonitoring ? "animate-pulse-slow" : ""}`}>
-              {isMonitoring ? "Monitoring motion" : "Calibrating..."}
+              {isMonitoring ? "Don't move." : "Calibrating..."}
             </p>
-            <p className="text-caption mt-8 text-xs">Leave your phone face down</p>
           </>
         )}
 
