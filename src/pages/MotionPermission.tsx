@@ -30,7 +30,8 @@ const MotionPermission = () => {
     setLoading(true);
     let granted = true;
 
-    const unlockPromise = unlockAudio("motion-permission-enable");
+    // Fire-and-forget: audio unlock must NEVER block game progression
+    unlockAudio("motion-permission-enable").catch(() => {});
 
     if (
       typeof DeviceOrientationEvent !== "undefined" &&
@@ -60,7 +61,6 @@ const MotionPermission = () => {
     setLoading(false);
 
     if (granted) {
-      await unlockPromise;
       setStatus("granted");
       setTimeout(() => navigate("/countdown", { replace: true }), 300);
     } else {
