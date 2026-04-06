@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useMotionDetection } from "@/hooks/useMotionDetection";
 import { useGameRoomContext } from "@/context/GameRoomContext";
+import { triggerGameOverFeedback } from "@/lib/gameOverFeedback";
 
 const ActiveGame = () => {
   const navigate = useNavigate();
@@ -15,7 +16,8 @@ const ActiveGame = () => {
   const [settleProgress, setSettleProgress] = useState(0);
   const [movementDetected, setMovementDetected] = useState(false);
   const startTimeRef = useRef(Date.now());
-  const settleDurationRef = useRef(2000 + Math.random() * 600); // 2.0–2.6s
+  // 2.5–3.0s settle to give time to place phone down
+  const settleDurationRef = useRef(2500 + Math.random() * 500);
 
   const me = players.find((p) => p.playerId === playerId);
   const playerName = me?.displayName ?? "You";
@@ -28,7 +30,6 @@ const ActiveGame = () => {
     const duration = settleDurationRef.current;
     const settleStart = Date.now();
 
-    // Animate progress during settle
     const progressInterval = setInterval(() => {
       const pct = Math.min(1, (Date.now() - settleStart) / duration);
       setSettleProgress(pct);
@@ -61,14 +62,16 @@ const ActiveGame = () => {
     if (!gameActive) return;
     setGameActive(false);
     setMovementDetected(true);
+    triggerGameOverFeedback();
     reportLoss(playerId, playerName);
   }, [gameActive, reportLoss, playerId, playerName]);
 
   const { isMonitoring, debug } = useMotionDetection(gameActive, handleMotion);
 
-  // Listen for game finish
+  // Listen for game finish — trigger feedback on ALL devices
   useEffect(() => {
     if (room?.status === "finished") {
+      triggerGameOverFeedback();
       navigate("/result", {
         replace: true,
         state: { survivalTime: elapsed },
@@ -79,6 +82,7 @@ const ActiveGame = () => {
   const handleEndGame = () => {
     setGameActive(false);
     setMovementDetected(true);
+    triggerGameOverFeedback();
     reportLoss(playerId, playerName);
   };
 
@@ -114,9 +118,9 @@ const ActiveGame = () => {
           <div>raw β: {debug.rawTilt.beta}</div>
           <div>raw γ: {debug.rawTilt.gamma}</div>
           <div className="mt-1 border-t border-muted-foreground/20 pt-1">
-            accel Δ: {debug.accelDelta}
+            smooth accel: {debug.smoothedAccel}
           </div>
-          <div>tilt Δ: {debug.tiltDelta}</div>
+          <div>smooth tilt: {debug.smoothedTilt}</div>
           <div>accel thresh: {debug.accelThreshold}</div>
           <div>tilt thresh: {debug.tiltThreshold}</div>
           <div>triggered: {debug.triggered ? "YES" : "no"}</div>
@@ -133,7 +137,7 @@ const ActiveGame = () => {
           <span className="text-2xl font-bold text-destructive">MOVEMENT DETECTED</span>
         ) : settling ? (
           <div className="flex flex-col items-center gap-6">
-            <p className="text-body text-lg text-foreground">Place your phone down</p>
+            <p className="text-body text-lg text-foreground">Place your phone face down</p>
             <div className="relative w-16 h-16">
               <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
                 <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />

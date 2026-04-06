@@ -12,6 +12,8 @@ export interface MotionDebug {
   permissionState: "pending" | "granted" | "denied";
   isNative: boolean;
   eventCount: number;
+  smoothedAccel: number;
+  smoothedTilt: number;
 }
 
 interface MotionState {
@@ -21,9 +23,12 @@ interface MotionState {
   debug: MotionDebug;
 }
 
-const ACCEL_THRESHOLD = 1.8;
-const TILT_THRESHOLD = 8;
-const CALIBRATION_MS = 1000;
+// Raised thresholds to prevent false triggers from table vibrations
+const ACCEL_THRESHOLD = 3.0;
+const TILT_THRESHOLD = 12;
+const CALIBRATION_MS = 1500;
+// Smoothing factor (0-1): lower = more smoothing
+const SMOOTHING_ALPHA = 0.3;
 
 const isNativePlatform = () => {
   return !!(window as any).Capacitor?.isNativePlatform?.() ||
@@ -53,6 +58,8 @@ export function useMotionDetection(
       permissionState: "pending",
       isNative: isNativePlatform(),
       eventCount: 0,
+      smoothedAccel: 0,
+      smoothedTilt: 0,
     },
   });
 
@@ -64,6 +71,9 @@ export function useMotionDetection(
   const firedRef = useRef(false);
   const eventCountRef = useRef(0);
   const permissionGrantedRef = useRef(false);
+  // Smoothed delta values for noise filtering
+  const smoothedAccelDelta = useRef(0);
+  const smoothedTiltDelta = useRef(0);
 
   const requestPermission = useCallback(async () => {
     let granted = true;
@@ -96,8 +106,7 @@ export function useMotionDetection(
     return granted;
   }, []);
 
-  // Auto-grant permission on platforms that don't require it,
-  // OR re-detect already-granted permission on iOS (from MotionPermission page)
+  // Auto-grant or re-detect permission
   useEffect(() => {
     if (!needsPermissionRequest()) {
       permissionGrantedRef.current = true;
@@ -108,8 +117,6 @@ export function useMotionDetection(
         debug: { ...s.debug, permissionState: "granted" },
       }));
     } else {
-      // On iOS, try requesting again — if already granted in this session,
-      // it resolves immediately without a prompt
       (async () => {
         let granted = true;
         try {
@@ -140,7 +147,7 @@ export function useMotionDetection(
   // Start listeners only when active AND permission granted
   useEffect(() => {
     if (!active || state.hasPermission !== true) {
-      setState((s) => ({ ...s, isMonitoring: false, debug: { ...s.debug, listenersActive: false, triggered: false, accelDelta: 0, tiltDelta: 0, eventCount: 0 } }));
+      setState((s) => ({ ...s, isMonitoring: false, debug: { ...s.debug, listenersActive: false, triggered: false, accelDelta: 0, tiltDelta: 0, eventCount: 0, smoothedAccel: 0, smoothedTilt: 0 } }));
       baseAccelRef.current = null;
       baseTiltRef.current = null;
       calibratingRef.current = true;
@@ -148,6 +155,8 @@ export function useMotionDetection(
       tiltSamples.current = [];
       firedRef.current = false;
       eventCountRef.current = 0;
+      smoothedAccelDelta.current = 0;
+      smoothedTiltDelta.current = 0;
       return;
     }
 
@@ -158,6 +167,8 @@ export function useMotionDetection(
     baseAccelRef.current = null;
     baseTiltRef.current = null;
     eventCountRef.current = 0;
+    smoothedAccelDelta.current = 0;
+    smoothedTiltDelta.current = 0;
 
     setState((s) => ({ ...s, debug: { ...s.debug, listenersActive: true } }));
 
@@ -184,7 +195,6 @@ export function useMotionDetection(
       const y = ag.y ?? 0;
       const z = ag.z ?? 0;
 
-      // Always update raw values
       if (eventCountRef.current % 3 === 0) {
         setState((s) => ({ ...s, debug: { ...s.debug, rawAccel: { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, z: Math.round(z * 100) / 100 }, eventCount: eventCountRef.current } }));
       }
@@ -198,9 +208,15 @@ export function useMotionDetection(
       const dx = x - baseAccelRef.current.x;
       const dy = y - baseAccelRef.current.y;
       const dz = z - baseAccelRef.current.z;
-      const accelDelta = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const rawDelta = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      setState((s) => ({ ...s, debug: { ...s.debug, accelDelta: Math.round(accelDelta * 100) / 100 } }));
+      // Exponential moving average smoothing
+      smoothedAccelDelta.current = SMOOTHING_ALPHA * rawDelta + (1 - SMOOTHING_ALPHA) * smoothedAccelDelta.current;
+      const accelDelta = smoothedAccelDelta.current;
+
+      if (eventCountRef.current % 3 === 0) {
+        setState((s) => ({ ...s, debug: { ...s.debug, accelDelta: Math.round(accelDelta * 100) / 100, smoothedAccel: Math.round(accelDelta * 100) / 100 } }));
+      }
 
       if (accelDelta > ACCEL_THRESHOLD) {
         firedRef.current = true;
@@ -225,9 +241,15 @@ export function useMotionDetection(
 
       const dBeta = Math.abs(beta - baseTiltRef.current.beta);
       const dGamma = Math.abs(gamma - baseTiltRef.current.gamma);
-      const tiltDelta = Math.max(dBeta, dGamma);
+      const rawTilt = Math.max(dBeta, dGamma);
 
-      setState((s) => ({ ...s, debug: { ...s.debug, tiltDelta: Math.round(tiltDelta * 100) / 100 } }));
+      // Exponential moving average smoothing
+      smoothedTiltDelta.current = SMOOTHING_ALPHA * rawTilt + (1 - SMOOTHING_ALPHA) * smoothedTiltDelta.current;
+      const tiltDelta = smoothedTiltDelta.current;
+
+      if (eventCountRef.current % 3 === 0) {
+        setState((s) => ({ ...s, debug: { ...s.debug, tiltDelta: Math.round(tiltDelta * 100) / 100, smoothedTilt: Math.round(tiltDelta * 100) / 100 } }));
+      }
 
       if (tiltDelta > TILT_THRESHOLD) {
         firedRef.current = true;
