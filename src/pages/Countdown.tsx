@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameRoomContext } from "@/context/GameRoomContext";
+import { playCountdownTick, playGameStartSound } from "@/lib/audioManager";
 
 const COUNTDOWN_SECONDS = 5;
 
@@ -16,22 +17,31 @@ const Countdown = () => {
   const { room, playerId, startGame } = useGameRoomContext();
   const [count, setCount] = useState(() => getRemainingCount(room?.countdownStartedAt ?? null));
   const hasStartedGame = useRef(false);
+  const lastTickedCount = useRef<number | null>(null);
 
   const isHost =
     room?.players.some((player) => player.playerId === playerId && player.isHost) ?? false;
 
+  // Redirect if no room
   useEffect(() => {
     if (!room) {
       navigate("/", { replace: true });
     }
   }, [room, navigate]);
 
-  // Sync countdown from shared timestamp
+  // Sync countdown from shared timestamp — single source of truth
   useEffect(() => {
     if (room?.status !== "countdown") return;
 
     const tick = () => {
-      setCount(getRemainingCount(room.countdownStartedAt));
+      const remaining = getRemainingCount(room.countdownStartedAt);
+      setCount(remaining);
+
+      // Play tick sound on each new number
+      if (lastTickedCount.current !== remaining && remaining > 0) {
+        lastTickedCount.current = remaining;
+        playCountdownTick();
+      }
     };
 
     tick();
@@ -43,12 +53,14 @@ const Countdown = () => {
   useEffect(() => {
     if (count > 0 || !isHost || hasStartedGame.current) return;
     hasStartedGame.current = true;
+    playGameStartSound();
     void startGame();
   }, [count, isHost, startGame]);
 
   // All players navigate when status becomes active
   useEffect(() => {
     if (room?.status === "active") {
+      playGameStartSound();
       navigate("/game", { replace: true });
     }
   }, [room?.status, navigate]);
@@ -56,16 +68,29 @@ const Countdown = () => {
   return (
     <div className="screen-center">
       <AnimatePresence mode="wait">
-        <motion.span
-          key={count}
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.5 }}
-          transition={{ duration: 0.3 }}
-          className="text-countdown text-foreground"
-        >
-          {count}
-        </motion.span>
+        {count > 0 ? (
+          <motion.span
+            key={count}
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.5 }}
+            transition={{ duration: 0.3 }}
+            className="text-countdown text-foreground"
+          >
+            {count}
+          </motion.span>
+        ) : (
+          <motion.span
+            key="go"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.5 }}
+            transition={{ duration: 0.2 }}
+            className="text-countdown text-foreground"
+          >
+            GO
+          </motion.span>
+        )}
       </AnimatePresence>
     </div>
   );
