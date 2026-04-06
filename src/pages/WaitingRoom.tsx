@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGameRoomContext } from "@/context/GameRoomContext";
+import { unlockAudio } from "@/lib/audioManager";
 import RulePicker from "@/components/RulePicker";
 import type { GameMode } from "@/lib/game-types";
 import { punishments } from "@/lib/punishments";
@@ -48,6 +49,17 @@ const WaitingRoom = () => {
   const canStart = players.length >= 2 && players.every((p) => p.isReady) && hasPunishment;
 
   const handleLeave = () => { leaveRoom(); navigate("/"); };
+
+  // Unlock audio on any user interaction in waiting room
+  const handleReady = () => {
+    unlockAudio();
+    toggleReady();
+  };
+
+  const handleStart = () => {
+    unlockAudio();
+    void startCountdown();
+  };
 
   return (
     <div className="min-h-[100dvh] w-full overflow-y-auto px-4 py-8 flex justify-center" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 6rem)" }}>
@@ -140,18 +152,22 @@ const WaitingRoom = () => {
 
         <div className="flex w-full flex-col gap-3">
           {!isHost && (
-            <Button onClick={toggleReady} variant={me?.isReady ? "secondary" : "default"} size="lg" className="w-full">
+            <Button onClick={handleReady} variant={me?.isReady ? "secondary" : "default"} size="lg" className="w-full">
               {me?.isReady ? "Unready" : "Ready"}
             </Button>
           )}
           {isHost && (
             <>
-              <Button onClick={() => void startCountdown()} disabled={!canStart} size="lg" className="w-full">
+              <Button onClick={handleStart} disabled={!canStart} size="lg" className="w-full">
                 Start Game
               </Button>
               {!canStart && (
                 <p className="text-center text-xs text-muted-foreground">
-                  {!hasPunishment ? "Select a punishment to start" : "Waiting for all players to be ready"}
+                  {players.length < 2
+                    ? "Need at least 2 players"
+                    : !hasPunishment
+                      ? "Select a punishment to start"
+                      : "Waiting for all players to be ready"}
                 </p>
               )}
             </>

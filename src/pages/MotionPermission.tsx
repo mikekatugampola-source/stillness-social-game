@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Smartphone } from "lucide-react";
+import { unlockAudio } from "@/lib/audioManager";
 
 const needsPermissionRequest = () => {
   return (
@@ -16,6 +17,7 @@ const needsPermissionRequest = () => {
 const MotionPermission = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<"prompt" | "denied" | "granted">("prompt");
+  const [loading, setLoading] = useState(false);
 
   // If platform doesn't need explicit permission, skip straight to countdown
   useEffect(() => {
@@ -25,7 +27,11 @@ const MotionPermission = () => {
   }, [navigate]);
 
   const handleEnable = useCallback(async () => {
+    setLoading(true);
     let granted = true;
+
+    // Unlock audio from this user gesture
+    unlockAudio();
 
     if (
       typeof DeviceOrientationEvent !== "undefined" &&
@@ -52,9 +58,10 @@ const MotionPermission = () => {
       }
     }
 
+    setLoading(false);
+
     if (granted) {
       setStatus("granted");
-      // Brief moment so user sees success, then proceed
       setTimeout(() => navigate("/countdown", { replace: true }), 300);
     } else {
       setStatus("denied");
@@ -76,8 +83,8 @@ const MotionPermission = () => {
           <p className="text-caption text-sm max-w-[280px]">
             Motion access is required to play. Please enable it in your device settings and try again.
           </p>
-          <Button onClick={handleEnable} variant="outline">
-            Try Again
+          <Button onClick={handleEnable} variant="outline" disabled={loading}>
+            {loading ? "Requesting…" : "Try Again"}
           </Button>
         </motion.div>
       </div>
@@ -99,8 +106,8 @@ const MotionPermission = () => {
         <p className="text-caption text-sm max-w-[280px]">
           We use motion to detect who moves first
         </p>
-        <Button onClick={handleEnable} className="mt-2 min-w-[200px]">
-          Enable Motion
+        <Button onClick={handleEnable} className="mt-2 min-w-[200px]" disabled={loading}>
+          {loading ? "Requesting…" : "Enable Motion"}
         </Button>
       </motion.div>
     </div>
