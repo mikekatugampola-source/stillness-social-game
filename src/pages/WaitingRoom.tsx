@@ -51,14 +51,14 @@ const WaitingRoom = () => {
   const handleLeave = () => { leaveRoom(); navigate("/"); };
 
   // Unlock audio on any user interaction in waiting room
-  const handleReady = () => {
-    unlockAudio();
-    toggleReady();
+  const handleReady = async () => {
+    await unlockAudio("waiting-room-ready");
+    await toggleReady();
   };
 
-  const handleStart = () => {
-    unlockAudio();
-    void startCountdown();
+  const handleStart = async () => {
+    await unlockAudio("waiting-room-start");
+    await startCountdown();
   };
 
   return (
