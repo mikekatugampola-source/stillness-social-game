@@ -11,8 +11,7 @@ const ResultScreen = () => {
 
   const loserName = room?.loserName ?? "Someone";
   const mode = room?.mode ?? "classic";
-  const sharedPunishment = room?.punishmentText;
-  const sharedDrinks = room?.drinksText;
+  const sharedDare = room?.dareText;
 
   const formatTime = (seconds: number) => {
     if (!seconds && seconds !== 0) return "0:00";
@@ -28,8 +27,8 @@ const ResultScreen = () => {
 
   const handleShare = async () => {
     const text = `${loserName.toUpperCase()} LOST after ${formatTime(survivalTime ?? 0)}${
-      mode === "punishment" && sharedPunishment ? ` — ${sharedPunishment}` : ""
-    }${mode === "drinks" && sharedDrinks ? ` — ${sharedDrinks}` : ""}\n\nTry it with your friends 👉 Don't Touch`;
+      mode === "dare" && sharedDare ? ` — ${sharedDare}` : ""
+    }\n\nChallenge your friends 👉 Don't Touch`;
 
     if (navigator.share) {
       try {
@@ -41,11 +40,7 @@ const ResultScreen = () => {
   };
 
   const outcomeText =
-    mode === "punishment" && sharedPunishment
-      ? sharedPunishment
-      : mode === "drinks" && sharedDrinks
-        ? sharedDrinks
-        : null;
+    mode === "dare" && sharedDare ? sharedDare : null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-background px-6 py-12">
@@ -55,10 +50,8 @@ const ResultScreen = () => {
         transition={{ duration: 0.8 }}
         className="flex flex-col items-center justify-center flex-1 w-full max-w-sm gap-10"
       >
-        {/* Spacer top */}
         <div className="flex-1" />
 
-        {/* Main result */}
         <motion.h1
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -69,7 +62,6 @@ const ResultScreen = () => {
           {loserName.toUpperCase()} LOST
         </motion.h1>
 
-        {/* Time */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.7 }}
@@ -80,7 +72,6 @@ const ResultScreen = () => {
           {formatTime(survivalTime ?? 0)}
         </motion.p>
 
-        {/* Outcome (punishment / drinks) */}
         {outcomeText && (
           <motion.p
             initial={{ opacity: 0 }}
@@ -93,20 +84,17 @@ const ResultScreen = () => {
           </motion.p>
         )}
 
-        {/* CTA */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.55 }}
           transition={{ delay: 1.0 }}
           className="text-foreground text-sm text-center tracking-wide"
         >
-          Try it with your friends
+          Challenge your friends
         </motion.p>
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -121,7 +109,6 @@ const ResultScreen = () => {
           </Button>
         </motion.div>
 
-        {/* Branding */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.4 }}

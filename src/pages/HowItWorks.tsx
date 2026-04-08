@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const steps = [
-  { number: "1", text: "Create or join a table" },
-  { number: "2", text: "Put your phones down" },
+  { number: "1", text: "Create or join a room" },
+  { number: "2", text: "Place your phones face up" },
   { number: "3", text: "First person to move loses" },
+  { number: "4", text: "Loser completes a dare!" },
 ];
 
 const HowItWorks = () => {
