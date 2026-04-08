@@ -1,33 +1,27 @@
-export const punishments = [
+export const dares = [
+  "Do 20 pushups",
+  "Text someone something bold",
+  "Sing loudly for 10 seconds",
+  "Let someone pick your next Instagram post",
+  "Do your best impression of someone in the room",
   "Do your best celebrity impression",
   "Speak in an accent for 2 minutes",
   "Let the group choose your next song",
   "Tell your most embarrassing harmless story",
   "Do 10 squats right now",
   "Reveal your most used emoji",
-  "Send a funny selfie to the group chat",
   "Compliment everyone at the table",
-  "Let someone choose your next text message opener",
-  "Trade seats with someone",
   "Do your best dance move",
-  "Let the group post one story on your social media",
   "Talk in third person for 3 minutes",
-  "Give your phone to someone for 30 seconds",
   "Say something nice about the person to your left",
 ];
 
-export const drinkMessages = [
-  "You moved first. Take a sip.",
-  "Tough break. Sip time.",
-  "First touch loses. Drink up.",
-  "Couldn't resist? Take a drink.",
-  "Motion detected. Sip required.",
-];
+/** @deprecated Use dares instead */
+export const punishments = dares;
 
-export function getRandomPunishment(): string {
-  return punishments[Math.floor(Math.random() * punishments.length)];
+export function getRandomDare(): string {
+  return dares[Math.floor(Math.random() * dares.length)];
 }
 
-export function getRandomDrinkMessage(): string {
-  return drinkMessages[Math.floor(Math.random() * drinkMessages.length)];
-}
+/** @deprecated Use getRandomDare instead */
+export const getRandomPunishment = getRandomDare;

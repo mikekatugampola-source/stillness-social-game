@@ -14,7 +14,7 @@ const Home = () => {
         className="flex flex-col items-center gap-4"
       >
         <h1 className="text-display">Don't Touch</h1>
-        <p className="text-caption text-lg tracking-wide">First to move loses.</p>
+        <p className="text-caption text-lg tracking-wide">Compete with friends. First to move loses.</p>
       </motion.div>
 
       <motion.div

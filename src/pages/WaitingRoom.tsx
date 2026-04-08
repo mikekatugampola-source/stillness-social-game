@@ -6,27 +6,18 @@ import { useGameRoomContext } from "@/context/GameRoomContext";
 import { unlockAudio } from "@/lib/audioManager";
 import RulePicker from "@/components/RulePicker";
 import type { GameMode } from "@/lib/game-types";
-import { punishments } from "@/lib/punishments";
+import { dares } from "@/lib/punishments";
 
 const modes: { id: GameMode; label: string; subtitle: string }[] = [
   { id: "classic", label: "Classic", subtitle: "Pure willpower" },
-  { id: "punishment", label: "Punishment", subtitle: "Loser gets a dare" },
-  { id: "drinks", label: "Drinks", subtitle: "Loser drinks" },
-];
-
-const drinksPresets = [
-  "Loser buys the round",
-  "Finish your drink",
-  "Take 2 sips",
-  "Everyone drinks, loser drinks twice",
-  "Choose someone else to drink",
+  { id: "dare", label: "Dare", subtitle: "Loser gets a dare" },
 ];
 
 const WaitingRoom = () => {
   const navigate = useNavigate();
   const {
-    room, playerId, toggleReady, updateMode, updatePunishment,
-    updateDrinksText, startCountdown, leaveRoom,
+    room, playerId, toggleReady, updateMode, updateDare,
+    startCountdown, leaveRoom,
   } = useGameRoomContext();
 
   useEffect(() => {
@@ -45,12 +36,11 @@ const WaitingRoom = () => {
   const me = players.find((p) => p.playerId === playerId);
   const isHost = me?.isHost ?? room.hostId === playerId;
   const currentMode = room.mode;
-  const hasPunishment = currentMode !== "punishment" || !!room.punishmentText?.trim();
-  const canStart = players.length >= 2 && players.every((p) => p.isReady) && hasPunishment;
+  const hasDare = currentMode !== "dare" || !!room.dareText?.trim();
+  const canStart = players.length >= 2 && players.every((p) => p.isReady) && hasDare;
 
   const handleLeave = () => { leaveRoom(); navigate("/"); };
 
-  // Unlock audio on any user interaction in waiting room
   const handleReady = async () => {
     void unlockAudio("waiting-room-ready");
     await toggleReady();
@@ -100,24 +90,14 @@ const WaitingRoom = () => {
           </div>
         )}
 
-        {currentMode === "punishment" && (
+        {currentMode === "dare" && (
           <RulePicker
-            label="Choose Punishment"
-            presets={punishments}
-            selected={room.punishmentText}
+            label="Choose Dare"
+            presets={dares}
+            selected={room.dareText}
             isHost={isHost}
             showCustomInput
-            onSelect={(t) => void updatePunishment(t)}
-          />
-        )}
-
-        {currentMode === "drinks" && (
-          <RulePicker
-            label="Choose Drinks Rule"
-            presets={drinksPresets}
-            selected={room.drinksText}
-            isHost={isHost}
-            onSelect={(t) => void updateDrinksText(t)}
+            onSelect={(t) => void updateDare(t)}
           />
         )}
 
@@ -165,8 +145,8 @@ const WaitingRoom = () => {
                 <p className="text-center text-xs text-muted-foreground">
                   {players.length < 2
                     ? "Need at least 2 players"
-                    : !hasPunishment
-                      ? "Select a punishment to start"
+                    : !hasDare
+                      ? "Select a dare to start"
                       : "Waiting for all players to be ready"}
                 </p>
               )}
@@ -174,6 +154,12 @@ const WaitingRoom = () => {
           )}
           <Button variant="ghost" onClick={handleLeave} size="sm">Leave</Button>
         </div>
+
+        {/* Safety disclaimer */}
+        <p className="text-[10px] text-muted-foreground/60 text-center leading-relaxed max-w-[280px]">
+          Play responsibly. Respect others. Keep challenges safe.
+          {currentMode === "dare" && " User-generated dares do not reflect the app's views. Keep dares safe and appropriate."}
+        </p>
       </motion.div>
     </div>
   );

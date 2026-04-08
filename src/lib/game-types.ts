@@ -1,4 +1,4 @@
-export type GameMode = "classic" | "punishment" | "drinks";
+export type GameMode = "classic" | "dare";
 
 export type GameStatus = "waiting" | "countdown" | "active" | "finished";
 
@@ -20,8 +20,7 @@ export interface GameRoom {
   loserName: string | null;
   countdownStartedAt: string | null;
   endedAt: string | null;
-  punishmentText: string | null;
-  drinksText: string | null;
+  dareText: string | null;
 }
 
 export type Player = RoomPlayer;
