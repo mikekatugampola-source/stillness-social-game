@@ -72,11 +72,9 @@ function sortPlayers(players: RoomPlayer[]): RoomPlayer[] {
 
 function dedupePlayers(players: RoomPlayer[]): RoomPlayer[] {
   const playersById = new Map<string, RoomPlayer>();
-
   players.forEach((player) => {
     playersById.set(player.playerId, player);
   });
-
   return sortPlayers(Array.from(playersById.values()));
 }
 
@@ -95,8 +93,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     loserName: nextRoom.loserName ?? null,
     countdownStartedAt: nextRoom.countdownStartedAt ?? null,
     endedAt: nextRoom.endedAt ?? null,
-    punishmentText: nextRoom.punishmentText ?? null,
-    drinksText: nextRoom.drinksText ?? null,
+    dareText: nextRoom.dareText ?? null,
   };
 }
 
@@ -116,8 +113,7 @@ function createRoomState(
     loserName: null,
     countdownStartedAt: null,
     endedAt: null,
-    punishmentText: null,
-    drinksText: mode === "drinks" ? "Loser buys the round" : null,
+    dareText: null,
   });
 }
 
@@ -426,7 +422,6 @@ export function useGameRoom() {
       const nextRoom = normalizeRoom({
         ...currentRoom,
         mode,
-        drinksText: mode === "drinks" ? (currentRoom.drinksText || "Loser buys the round") : currentRoom.drinksText,
       });
 
       setRoomState(nextRoom);
@@ -435,8 +430,8 @@ export function useGameRoom() {
     [publishRoomState, setRoomState]
   );
 
-  const updatePunishment = useCallback(
-    async (punishmentText: string) => {
+  const updateDare = useCallback(
+    async (dareText: string) => {
       const channel = channelRef.current;
       const currentRoom = roomRef.current;
       const localPlayer = localPlayerRef.current;
@@ -446,25 +441,9 @@ export function useGameRoom() {
 
       const nextRoom = normalizeRoom({
         ...currentRoom,
-        punishmentText,
+        dareText,
       });
 
-      setRoomState(nextRoom);
-      await publishRoomState(channel, nextRoom);
-    },
-    [publishRoomState, setRoomState]
-  );
-
-  const updateDrinksText = useCallback(
-    async (drinksText: string) => {
-      const channel = channelRef.current;
-      const currentRoom = roomRef.current;
-      const localPlayer = localPlayerRef.current;
-
-      if (!channel || !currentRoom || !localPlayer) return;
-      if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
-
-      const nextRoom = normalizeRoom({ ...currentRoom, drinksText });
       setRoomState(nextRoom);
       await publishRoomState(channel, nextRoom);
     },
@@ -482,7 +461,7 @@ export function useGameRoom() {
     const canStart =
       currentRoom.players.length >= 2 &&
       currentRoom.players.every((player) => player.isReady) &&
-      (currentRoom.mode !== "punishment" || !!currentRoom.punishmentText?.trim());
+      (currentRoom.mode !== "dare" || !!currentRoom.dareText?.trim());
 
     if (!canStart) return;
 
@@ -519,7 +498,6 @@ export function useGameRoom() {
       const currentRoom = roomRef.current;
 
       if (!channel || !currentRoom) return;
-      // Prevent duplicate reports
       if (currentRoom.status === "finished") return;
 
       const nextRoom = normalizeRoom({
@@ -531,7 +509,6 @@ export function useGameRoom() {
       });
 
       setRoomState(nextRoom);
-      // Use dedicated game_finished event so all devices handle it explicitly
       await publishRoomState(channel, nextRoom, "game_finished");
     },
     [publishRoomState, setRoomState]
@@ -557,8 +534,7 @@ export function useGameRoom() {
     joinRoom,
     toggleReady,
     updateMode,
-    updatePunishment,
-    updateDrinksText,
+    updateDare,
     startCountdown,
     startGame,
     reportLoss,
