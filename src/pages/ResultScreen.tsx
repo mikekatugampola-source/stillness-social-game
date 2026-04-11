@@ -6,11 +6,16 @@ import { toast } from "sonner";
 
 const TIKTOK_APP_URL = "snssdk1233://";
 const TIKTOK_WEB_URL = "https://www.tiktok.com";
-const CAPTION_TEXT = "Last to touch their phone wins… I lost 💀 #donttouchchallenge";
+
+const LOSER_CAPTION = "Last to touch their phone wins… I lost 💀 #donttouchchallenge";
+const WINNER_CAPTION = "We played 'last to touch their phone wins'… he lost 💀 #donttouchchallenge";
 
 const ResultScreen = () => {
   const navigate = useNavigate();
-  const { leaveRoom } = useGameRoomContext();
+  const { room, playerId, leaveRoom } = useGameRoomContext();
+
+  const isLoser = room?.loserId === playerId;
+  const loserName = room?.loserName;
 
   const handleOpenTikTok = () => {
     const timeout = setTimeout(() => {
@@ -28,7 +33,7 @@ const ResultScreen = () => {
 
   const handleCopyCaption = async () => {
     try {
-      await navigator.clipboard.writeText(CAPTION_TEXT);
+      await navigator.clipboard.writeText(isLoser ? LOSER_CAPTION : WINNER_CAPTION);
       toast.success("Caption copied!");
     } catch {
       toast.error("Couldn't copy — try manually");
@@ -50,25 +55,61 @@ const ResultScreen = () => {
       >
         <div className="flex-1" />
 
-        <motion.h1
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-foreground font-bold tracking-tight leading-none text-center"
-          style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
-        >
-          You lost 💀
-        </motion.h1>
+        {isLoser ? (
+          <>
+            <motion.h1
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-foreground font-bold tracking-tight leading-none text-center"
+              style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
+            >
+              You lost 💀
+            </motion.h1>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.6 }}
-          transition={{ delay: 0.3 }}
-          className="text-foreground text-center font-light"
-          style={{ fontSize: "clamp(1rem, 4vw, 1.25rem)" }}
-        >
-          This is definitely going on TikTok
-        </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ delay: 0.3 }}
+              className="text-foreground text-center font-light"
+              style={{ fontSize: "clamp(1rem, 4vw, 1.25rem)" }}
+            >
+              This is definitely going on TikTok
+            </motion.p>
+          </>
+        ) : (
+          <>
+            <motion.h1
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-foreground font-bold tracking-tight leading-none text-center"
+              style={{ fontSize: "clamp(2.5rem, 10vw, 4.5rem)" }}
+            >
+              {loserName ? `${loserName} lost 💀` : "Someone lost 💀"}
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.7 }}
+              transition={{ delay: 0.3 }}
+              className="text-foreground text-center font-semibold"
+              style={{ fontSize: "clamp(1.25rem, 5vw, 1.75rem)" }}
+            >
+              Film this
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              transition={{ delay: 0.45 }}
+              className="text-foreground text-center font-light"
+              style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
+            >
+              Don't let him off easy
+            </motion.p>
+          </>
+        )}
 
         <div className="flex-1" />
 
@@ -79,7 +120,7 @@ const ResultScreen = () => {
           className="flex flex-col items-center gap-3 w-full"
         >
           <Button onClick={handleOpenTikTok} size="lg" className="w-full max-w-[280px]">
-            Open TikTok
+            {isLoser ? "Open TikTok" : "Post this on TikTok"}
           </Button>
           <Button variant="outline" onClick={handleCopyCaption} size="sm" className="w-full max-w-[280px]">
             Copy Caption
