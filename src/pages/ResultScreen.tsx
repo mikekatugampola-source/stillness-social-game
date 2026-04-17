@@ -35,7 +35,7 @@ const ResultScreen = () => {
 
   const handleCopyCaption = async () => {
     try {
-      await navigator.clipboard.writeText(isLoser ? LOSER_CAPTION : WINNER_CAPTION);
+      await navigator.clipboard.writeText(isLoser ? LOSER_CAPTION : buildWinnerCaption(loserName));
       toast.success("Caption copied!");
     } catch {
       toast.error("Couldn't copy — try manually");
