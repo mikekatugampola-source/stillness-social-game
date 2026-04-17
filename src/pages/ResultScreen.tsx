@@ -16,6 +16,7 @@ const ResultScreen = () => {
 
   const isLoser = room?.loserId === playerId;
   const loserName = room?.loserName;
+  const loserTitle = loserName ? `${loserName} lost 💀` : "You lost 💀";
 
   const handleOpenTikTok = () => {
     const timeout = setTimeout(() => {
@@ -62,31 +63,9 @@ const ResultScreen = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
               className="text-foreground font-bold tracking-tight leading-none text-center"
-              style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
-            >
-              You lost 💀
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6 }}
-              transition={{ delay: 0.3 }}
-              className="text-foreground text-center font-light"
-              style={{ fontSize: "clamp(1rem, 4vw, 1.25rem)" }}
-            >
-              This is definitely going on TikTok
-            </motion.p>
-          </>
-        ) : (
-          <>
-            <motion.h1
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-foreground font-bold tracking-tight leading-none text-center"
               style={{ fontSize: "clamp(2.5rem, 10vw, 4.5rem)" }}
             >
-              {loserName ? `${loserName} lost 💀` : "Someone lost 💀"}
+              {loserTitle}
             </motion.h1>
 
             <motion.p
@@ -101,12 +80,54 @@ const ResultScreen = () => {
 
             <motion.p
               initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ delay: 0.4 }}
+              className="text-foreground text-center font-light"
+              style={{ fontSize: "clamp(1rem, 4vw, 1.25rem)" }}
+            >
+              Don't move. They're filming this.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              transition={{ delay: 0.5 }}
+              className="text-foreground text-center font-light"
+              style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
+            >
+              Make it count
+            </motion.p>
+          </>
+        ) : (
+          <>
+            <motion.h1
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-foreground font-bold tracking-tight leading-none text-center"
+              style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
+            >
+              You won
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.7 }}
+              transition={{ delay: 0.3 }}
+              className="text-foreground text-center font-semibold"
+              style={{ fontSize: "clamp(1.25rem, 5vw, 1.75rem)" }}
+            >
+              Film them. Post it.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
               transition={{ delay: 0.45 }}
               className="text-foreground text-center font-light"
               style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
             >
-              Don't let him off easy
+              Don't let them off easy.
             </motion.p>
           </>
         )}
@@ -120,7 +141,7 @@ const ResultScreen = () => {
           className="flex flex-col items-center gap-3 w-full"
         >
           <Button onClick={handleOpenTikTok} size="lg" className="w-full max-w-[280px]">
-            {isLoser ? "Open TikTok" : "Post this on TikTok"}
+            Post this
           </Button>
           <Button variant="outline" onClick={handleCopyCaption} size="sm" className="w-full max-w-[280px]">
             Copy Caption
@@ -136,7 +157,7 @@ const ResultScreen = () => {
           transition={{ delay: 0.6 }}
           className="text-foreground text-xs tracking-wide text-center pb-2"
         >
-          Tag @donttouchapp for a chance to be featured 👀
+          Post this. Tag @donttouchapp. #donttouchchallenge
         </motion.p>
       </motion.div>
     </div>
