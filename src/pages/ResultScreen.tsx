@@ -16,7 +16,7 @@ const ResultScreen = () => {
 
   const isLoser = room?.loserId === playerId;
   const loserName = room?.loserName;
-  const loserTitle = loserName ? `${loserName} lost 💀` : "You lost 💀";
+  const winnerTitle = loserName ? `${loserName} lost 💀` : "Someone lost 💀";
 
   const handleOpenTikTok = () => {
     const timeout = setTimeout(() => {
@@ -63,9 +63,9 @@ const ResultScreen = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
               className="text-foreground font-bold tracking-tight leading-none text-center"
-              style={{ fontSize: "clamp(2.5rem, 10vw, 4.5rem)" }}
+              style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
             >
-              {loserTitle}
+              You lost 💀
             </motion.h1>
 
             <motion.p
@@ -75,27 +75,7 @@ const ResultScreen = () => {
               className="text-foreground text-center font-semibold"
               style={{ fontSize: "clamp(1.25rem, 5vw, 1.75rem)" }}
             >
-              Film this
-            </motion.p>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6 }}
-              transition={{ delay: 0.4 }}
-              className="text-foreground text-center font-light"
-              style={{ fontSize: "clamp(1rem, 4vw, 1.25rem)" }}
-            >
-              Don't move. They're filming this.
-            </motion.p>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              transition={{ delay: 0.5 }}
-              className="text-foreground text-center font-light"
-              style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
-            >
-              Make it count
+              Your friends are filming your dare.
             </motion.p>
           </>
         ) : (
@@ -105,9 +85,9 @@ const ResultScreen = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
               className="text-foreground font-bold tracking-tight leading-none text-center"
-              style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
+              style={{ fontSize: "clamp(2.5rem, 10vw, 4.5rem)" }}
             >
-              You won
+              {winnerTitle}
             </motion.h1>
 
             <motion.p
@@ -117,7 +97,7 @@ const ResultScreen = () => {
               className="text-foreground text-center font-semibold"
               style={{ fontSize: "clamp(1.25rem, 5vw, 1.75rem)" }}
             >
-              Film them. Post it.
+              Film this. Post it.
             </motion.p>
 
             <motion.p
