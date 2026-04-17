@@ -7,9 +7,9 @@ import { toast } from "sonner";
 const TIKTOK_APP_URL = "snssdk1233://";
 const TIKTOK_WEB_URL = "https://www.tiktok.com";
 
-const LOSER_CAPTION = "We played last to touch their phone wins… I lost 💀 #donttouchchallenge";
+const LOSER_CAPTION = "I lost 💀 now I have to do this… #donttouchchallenge";
 const buildWinnerCaption = (loserName?: string) =>
-  `We played last to touch their phone wins… ${loserName?.trim() || "someone"} lost 💀 #donttouchchallenge`;
+  `${loserName?.trim() || "someone"} lost 💀 now they have to do this… #donttouchchallenge`;
 
 const ResultScreen = () => {
   const navigate = useNavigate();
