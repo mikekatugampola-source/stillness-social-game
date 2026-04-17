@@ -92,6 +92,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     loserId: nextRoom.loserId ?? null,
     loserName: nextRoom.loserName ?? null,
     countdownStartedAt: nextRoom.countdownStartedAt ?? null,
+    roundStartedAt: nextRoom.roundStartedAt ?? null,
     endedAt: nextRoom.endedAt ?? null,
     dareText: nextRoom.dareText ?? null,
   };
@@ -112,6 +113,7 @@ function createRoomState(
     loserId: null,
     loserName: null,
     countdownStartedAt: null,
+    roundStartedAt: null,
     endedAt: null,
     dareText: null,
   });
@@ -486,6 +488,7 @@ export function useGameRoom() {
     const nextRoom = normalizeRoom({
       ...currentRoom,
       status: "active",
+      roundStartedAt: currentRoom.roundStartedAt ?? nowIso(),
     });
 
     setRoomState(nextRoom);

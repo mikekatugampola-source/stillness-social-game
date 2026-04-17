@@ -15,13 +15,16 @@ const ActiveGame = () => {
   const [settling, setSettling] = useState(true);
   const [settleProgress, setSettleProgress] = useState(0);
   const [movementDetected, setMovementDetected] = useState(false);
-  const startTimeRef = useRef(Date.now());
   const hasTriggeredFeedback = useRef(false);
   // 2.5–3.0s settle to give time to place phone down
   const settleDurationRef = useRef(2500 + Math.random() * 500);
 
   const me = players.find((p) => p.playerId === playerId);
   const playerName = me?.displayName ?? "You";
+
+  // Shared round start time — same for every player in the room.
+  // Local motion-detection readiness (settling) does NOT start the timer.
+  const roundStartMs = room?.roundStartedAt ? new Date(room.roundStartedAt).getTime() : null;
 
   useEffect(() => {
     if (!room) {
@@ -41,7 +44,6 @@ const ActiveGame = () => {
       setSettleProgress(1);
       setSettling(false);
       setGameActive(true);
-      startTimeRef.current = Date.now();
     }, duration);
 
     return () => {
@@ -50,14 +52,14 @@ const ActiveGame = () => {
     };
   }, [room, navigate]);
 
-  // Timer
+  // Timer — driven by the shared round start timestamp so every player sees the same elapsed time.
   useEffect(() => {
-    if (!gameActive) return;
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
-    }, 100);
+    if (!roundStartMs) return;
+    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - roundStartMs) / 1000)));
+    tick();
+    const interval = setInterval(tick, 100);
     return () => clearInterval(interval);
-  }, [gameActive]);
+  }, [roundStartMs]);
 
   const handleMotion = useCallback(() => {
     if (!gameActive || movementDetected) return;

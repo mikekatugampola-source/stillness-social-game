@@ -19,6 +19,7 @@ export interface GameRoom {
   loserId: string | null;
   loserName: string | null;
   countdownStartedAt: string | null;
+  roundStartedAt: string | null;
   endedAt: string | null;
   dareText: string | null;
 }
