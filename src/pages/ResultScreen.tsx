@@ -18,6 +18,7 @@ const ResultScreen = () => {
   const isLoser = room?.loserId === playerId;
   const loserName = room?.loserName;
   const winnerTitle = loserName ? `${loserName} lost 💀` : "Someone lost 💀";
+  const dareText = room?.dareText?.trim();
 
   const handleOpenTikTok = () => {
     const timeout = setTimeout(() => {
