@@ -18,6 +18,7 @@ const ResultScreen = () => {
   const isLoser = room?.loserId === playerId;
   const loserName = room?.loserName;
   const winnerTitle = loserName ? `${loserName} lost 💀` : "Someone lost 💀";
+  const dareText = room?.dareText?.trim();
 
   const handleOpenTikTok = () => {
     const timeout = setTimeout(() => {
@@ -76,7 +77,17 @@ const ResultScreen = () => {
               className="text-foreground text-center font-semibold"
               style={{ fontSize: "clamp(1.25rem, 5vw, 1.75rem)" }}
             >
-              Your friends are filming your dare.
+              Do the dare.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              transition={{ delay: 0.45 }}
+              className="text-foreground text-center font-light"
+              style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
+            >
+              They're filming you.
             </motion.p>
           </>
         ) : (
@@ -101,15 +112,34 @@ const ResultScreen = () => {
               Film this. Post it.
             </motion.p>
 
+            {dareText && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="w-full rounded-xl border border-border bg-card px-5 py-4 text-center"
+              >
+                <p
+                  className="text-foreground font-semibold leading-snug"
+                  style={{ fontSize: "clamp(1rem, 4.2vw, 1.25rem)" }}
+                >
+                  <span className="opacity-60">Dare: </span>
+                  {dareText}
+                </p>
+              </motion.div>
+            )}
+
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
-              transition={{ delay: 0.45 }}
+              transition={{ delay: 0.5 }}
               className="text-foreground text-center font-light"
               style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
             >
               Don't let them off easy.
             </motion.p>
+
+
           </>
         )}
 
