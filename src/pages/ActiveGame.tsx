@@ -22,6 +22,48 @@ const ActiveGame = () => {
   const me = players.find((p) => p.playerId === playerId);
   const playerName = me?.displayName ?? "You";
 
+  // Keep screen awake during the active round so motion detection keeps working.
+  useEffect(() => {
+    if (!room || room.status === "finished") return;
+
+    let wakeLock: any = null;
+    let cancelled = false;
+
+    const request = async () => {
+      try {
+        const nav: any = navigator;
+        if (nav?.wakeLock?.request) {
+          wakeLock = await nav.wakeLock.request("screen");
+          if (cancelled && wakeLock?.release) {
+            wakeLock.release().catch(() => {});
+            wakeLock = null;
+          }
+        }
+      } catch {
+        // ignore — wake lock not available or denied
+      }
+    };
+
+    request();
+
+    // Re-acquire if visibility comes back (browsers auto-release on hide)
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && !wakeLock) {
+        request();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (wakeLock?.release) {
+        wakeLock.release().catch(() => {});
+        wakeLock = null;
+      }
+    };
+  }, [room?.status, room]);
+
   // Shared round start time — same for every player in the room.
   // Local motion-detection readiness (settling) does NOT start the timer.
   const roundStartMs = room?.roundStartedAt ? new Date(room.roundStartedAt).getTime() : null;
