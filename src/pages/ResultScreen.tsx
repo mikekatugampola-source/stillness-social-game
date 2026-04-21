@@ -139,15 +139,7 @@ const ResultScreen = () => {
               Don't let them off easy.
             </motion.p>
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              transition={{ delay: 0.45 }}
-              className="text-foreground text-center font-light"
-              style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
-            >
-              Don't let them off easy.
-            </motion.p>
+
           </>
         )}
 
