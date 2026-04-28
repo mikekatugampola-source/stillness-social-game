@@ -9,17 +9,24 @@ const CreateTable = () => {
   const [name, setName] = useState("");
   const { createRoom } = useGameRoomContext();
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleCreate = async () => {
     const displayName = name.trim();
     if (!displayName || loading) return;
 
     setLoading(true);
+    setErrorMessage(null);
     try {
       const result = await createRoom(displayName);
       if (result) {
         navigate("/waiting");
+      } else {
+        setErrorMessage("Could not create room. Please try again.");
       }
+    } catch (err) {
+      console.error("[CreateTable] createRoom failed", err);
+      setErrorMessage("Could not create room. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -49,6 +56,12 @@ const CreateTable = () => {
         <Button onClick={handleCreate} disabled={!name.trim() || loading} size="lg" className="w-full">
           {loading ? "Creating..." : "Create"}
         </Button>
+
+        {errorMessage && (
+          <p className="text-sm text-destructive text-center" role="alert">
+            {errorMessage}
+          </p>
+        )}
 
         <Button variant="ghost" onClick={() => navigate("/")} size="sm">
           Back
