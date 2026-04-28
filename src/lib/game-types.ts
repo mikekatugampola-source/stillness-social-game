@@ -1,6 +1,6 @@
 export type GameMode = "classic" | "dare";
 
-export type GameStatus = "waiting" | "arming" | "countdown" | "active" | "finished";
+export type GameStatus = "lobby" | "arming" | "countdown" | "playing" | "finished";
 
 export interface RoomPlayer {
   playerId: string;
