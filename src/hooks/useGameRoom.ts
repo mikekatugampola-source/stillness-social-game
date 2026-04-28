@@ -107,6 +107,13 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
   const players = dedupePlayers(nextRoom.players);
   const hostId = nextRoom.hostId || players.find((player) => player.isHost)?.playerId || "";
 
+  const countdownStartedAt = nextRoom.countdownStartedAt ?? null;
+  // Always prefer an explicit roundStartedAt, but fall back to a deterministic
+  // derivation from the shared countdown timestamp so every client computes the
+  // same value regardless of broadcast ordering.
+  const roundStartedAt =
+    nextRoom.roundStartedAt ?? deriveRoundStartedAt(countdownStartedAt);
+
   return {
     ...nextRoom,
     hostId,
@@ -117,8 +124,8 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     })),
     loserId: nextRoom.loserId ?? null,
     loserName: nextRoom.loserName ?? null,
-    countdownStartedAt: nextRoom.countdownStartedAt ?? null,
-    roundStartedAt: nextRoom.roundStartedAt ?? null,
+    countdownStartedAt,
+    roundStartedAt,
     endedAt: nextRoom.endedAt ?? null,
     dareText: nextRoom.dareText ?? null,
   };
