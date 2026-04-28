@@ -43,7 +43,7 @@ const MotionPermission = () => {
       return;
     }
 
-    if (room.status === "active") {
+    if (room.status === "playing") {
       navigate("/game", { replace: true });
       return;
     }

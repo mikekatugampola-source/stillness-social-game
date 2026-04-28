@@ -95,7 +95,7 @@ const ActiveGame = () => {
       const pct = Math.min(1, Math.max(0, (Date.now() - roundStartMs) / SETTLE_DURATION_MS));
       setSettleProgress(pct);
       setSettling(pct < 1);
-      setGameActive(pct >= 1 && room.status === "active");
+      setGameActive(pct >= 1 && room.status === "playing");
     };
 
     tick();

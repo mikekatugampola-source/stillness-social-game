@@ -56,9 +56,9 @@ const Countdown = () => {
     void startGame();
   }, [count, isHost, startGame]);
 
-  // All players navigate when status becomes active
+  // All players navigate when shared phase becomes playing
   useEffect(() => {
-    if (room?.status === "active") {
+    if (room?.status === "playing") {
       void playGameStartSound("room-status-active");
       navigate("/game", { replace: true });
     }
