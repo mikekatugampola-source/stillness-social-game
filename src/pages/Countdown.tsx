@@ -51,6 +51,10 @@ const Countdown = () => {
     if (count > 0 || room?.status !== "countdown" || hasStartedGame.current) return;
     hasStartedGame.current = true;
     void startGame();
+    const retry = window.setInterval(() => {
+      void startGame();
+    }, 500);
+    return () => window.clearInterval(retry);
   }, [count, room?.status, startGame]);
 
   // All players navigate when shared phase becomes playing
