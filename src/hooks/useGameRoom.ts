@@ -20,6 +20,8 @@ type RoomBroadcastEvent = "room_state" | "room_sync_request" | "motion_ready" | 
 type RoomChannel = ReturnType<typeof supabase.channel>;
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const COUNTDOWN_SECONDS = 5;
+const COUNTDOWN_SYNC_DELAY_MS = 1000;
 
 function generateCode(): string {
   let code = "";
@@ -35,6 +37,10 @@ function generateId(): string {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function isoFromNow(delayMs: number): string {
+  return new Date(Date.now() + delayMs).toISOString();
 }
 
 function normalizeRoomCode(code: string): string {
@@ -221,7 +227,7 @@ export function useGameRoom() {
       const countdownRoom = normalizeRoom({
         ...nextRoom,
         status: "countdown",
-        countdownStartedAt: nowIso(),
+        countdownStartedAt: isoFromNow(COUNTDOWN_SYNC_DELAY_MS),
       });
 
       console.log("[room:%s] all motion enabled, starting shared countdown", countdownRoom.roomCode);
@@ -624,10 +630,17 @@ export function useGameRoom() {
     if (!channel || !currentRoom || !localPlayer) return;
     if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
 
+    const countdownStartedMs = currentRoom.countdownStartedAt
+      ? new Date(currentRoom.countdownStartedAt).getTime()
+      : null;
+    const sharedRoundStartedAt = countdownStartedMs && Number.isFinite(countdownStartedMs)
+      ? new Date(countdownStartedMs + COUNTDOWN_SECONDS * 1000).toISOString()
+      : nowIso();
+
     const nextRoom = normalizeRoom({
       ...currentRoom,
       status: "active",
-      roundStartedAt: currentRoom.roundStartedAt ?? nowIso(),
+      roundStartedAt: currentRoom.roundStartedAt ?? sharedRoundStartedAt,
     });
 
     setRoomState(nextRoom);
