@@ -66,7 +66,7 @@ function nowIso(): string {
 }
 
 function normalizeRoomCode(code: string): string {
-  return code.trim().toUpperCase();
+  return code.replace(/\s+/g, "").toUpperCase();
 }
 
 function sortPlayers(players: RoomPlayer[]): RoomPlayer[] {
