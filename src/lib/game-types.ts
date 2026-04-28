@@ -1,12 +1,13 @@
 export type GameMode = "classic" | "dare";
 
-export type GameStatus = "waiting" | "countdown" | "active" | "finished";
+export type GameStatus = "waiting" | "arming" | "countdown" | "active" | "finished";
 
 export interface RoomPlayer {
   playerId: string;
   displayName: string;
   isHost: boolean;
   isReady: boolean;
+  motionEnabled: boolean;
   joinedAt: string;
 }
 
