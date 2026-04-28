@@ -92,6 +92,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     players: players.map((player) => ({
       ...player,
       isHost: hostId ? player.playerId === hostId : player.isHost,
+      motionEnabled: player.motionEnabled ?? false,
     })),
     loserId: nextRoom.loserId ?? null,
     loserName: nextRoom.loserName ?? null,
@@ -143,6 +144,10 @@ function mergeRoom(
     ...incoming,
     players: incoming.players ?? baseRoom.players,
   });
+}
+
+function allPlayersMotionEnabled(room: GameRoom): boolean {
+  return room.players.length >= 2 && room.players.every((player) => player.motionEnabled);
 }
 
 export function useGameRoom() {
