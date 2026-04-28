@@ -29,8 +29,18 @@ const ActiveGame = () => {
 
     let wakeLock: any = null;
     let cancelled = false;
+    let nativeKeptAwake = false;
 
     const request = async () => {
+      // Native (iOS/Android via Capacitor) — equivalent to UIApplication.isIdleTimerDisabled = true
+      try {
+        await KeepAwake.keepAwake();
+        nativeKeptAwake = true;
+      } catch {
+        // not on a native platform or plugin unavailable — fall through to web API
+      }
+
+      // Web Wake Lock API (PWA / browser)
       try {
         const nav: any = navigator;
         if (nav?.wakeLock?.request) {
@@ -61,6 +71,11 @@ const ActiveGame = () => {
       if (wakeLock?.release) {
         wakeLock.release().catch(() => {});
         wakeLock = null;
+      }
+      if (nativeKeptAwake) {
+        // Restore normal sleep behavior — equivalent to isIdleTimerDisabled = false
+        KeepAwake.allowSleep().catch(() => {});
+        nativeKeptAwake = false;
       }
     };
   }, [room?.status, room]);
