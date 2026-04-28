@@ -488,6 +488,18 @@ export function useGameRoom() {
     [applyPresenceSync, beginSharedCountdown, cleanup, publishRoomState, setRoomState]
   );
 
+  const requestRoomSync = useCallback(async () => {
+    const channel = channelRef.current;
+    const localPlayer = localPlayerRef.current;
+    if (!channel || !localPlayer || localPlayer.isHost) return;
+
+    await channel.send({
+      type: "broadcast",
+      event: "room_sync_request",
+      payload: { playerId: localPlayer.playerId },
+    });
+  }, []);
+
   const createRoom = useCallback(
     async (hostName: string, mode: GameMode = "classic") => {
       const hostPlayer: RoomPlayer = {
