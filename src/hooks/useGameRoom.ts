@@ -66,7 +66,7 @@ function nowIso(): string {
 }
 
 function normalizeRoomCode(code: string): string {
-  return code.trim().toUpperCase();
+  return code.replace(/\s+/g, "").toUpperCase();
 }
 
 function sortPlayers(players: RoomPlayer[]): RoomPlayer[] {
@@ -324,6 +324,11 @@ export function useGameRoom() {
   const joinRoom = useCallback(
     async (code: string, displayName: string) => {
       const normalizedCode = normalizeRoomCode(code);
+      if (!/^[A-Z2-9]{4}$/.test(normalizedCode)) {
+        setError("Room not found");
+        return { ok: false as const, errorCode: "ROOM_NOT_FOUND" as const, message: "Room not found" };
+      }
+
       const joinedPlayer: RoomPlayer = {
         playerId: generateId(),
         displayName,
@@ -333,22 +338,43 @@ export function useGameRoom() {
         joinedAt: nowIso(),
       };
 
-      localPlayerRef.current = joinedPlayer;
-      setPlayerId(joinedPlayer.playerId);
       setError(null);
       await syncServerClock();
 
-      const joinedRoom = await callRoomAction("join_game_room", {
+      const { data, error: rpcError } = await db.rpc("join_game_room", {
         p_room_code: normalizedCode,
         p_player_id: joinedPlayer.playerId,
         p_display_name: joinedPlayer.displayName,
       });
 
-      if (!joinedRoom) return null;
+      if (rpcError) {
+        const raw = `${rpcError.message ?? ""}`;
+        let errorCode: "ROOM_NOT_FOUND" | "GAME_ALREADY_STARTED" | "NETWORK" = "NETWORK";
+        let message = "Couldn't join. Try again.";
+        if (raw.includes("ROOM_NOT_FOUND")) {
+          errorCode = "ROOM_NOT_FOUND";
+          message = "Room not found";
+        } else if (raw.includes("GAME_ALREADY_STARTED")) {
+          errorCode = "GAME_ALREADY_STARTED";
+          message = "Game already started";
+        }
+        console.warn("[room] join failed", rpcError);
+        setError(message);
+        return { ok: false as const, errorCode, message };
+      }
+
+      const joinedRoom = applyRoomRow(data as GameRoomRow | null);
+      if (!joinedRoom) {
+        setError("Couldn't join. Try again.");
+        return { ok: false as const, errorCode: "NETWORK" as const, message: "Couldn't join. Try again." };
+      }
+
+      localPlayerRef.current = joinedPlayer;
+      setPlayerId(joinedPlayer.playerId);
       void subscribeToRoom(joinedRoom.roomCode);
-      return { room: joinedRoom, playerId: joinedPlayer.playerId };
+      return { ok: true as const, room: joinedRoom, playerId: joinedPlayer.playerId };
     },
-    [callRoomAction, subscribeToRoom, syncServerClock]
+    [applyRoomRow, subscribeToRoom, syncServerClock]
   );
 
   const toggleReady = useCallback(async () => {
