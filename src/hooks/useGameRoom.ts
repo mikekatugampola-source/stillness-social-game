@@ -240,19 +240,28 @@ export function useGameRoom() {
 
         channel
           .on("presence", { event: "sync" }, async () => {
-            const syncedRoom = applyPresenceSync(
-              channel.presenceState() as Record<string, PresenceMeta[]>
-            );
+            const state = channel.presenceState() as Record<string, PresenceMeta[]>;
+            console.log("[room:%s] presence sync, keys:", roomCode, Object.keys(state));
+            const syncedRoom = applyPresenceSync(state);
 
             if (syncedRoom && localPlayerRef.current?.isHost) {
+              console.log("[room:%s] host rebroadcasting room_state, players:", roomCode, syncedRoom.players.length);
               await publishRoomState(channel, syncedRoom);
             }
           })
-          .on("broadcast", { event: "room_sync_request" }, async () => {
+          .on("presence", { event: "join" }, ({ key, newPresences }) => {
+            console.log("[room:%s] presence JOIN key=%s presences=%o", roomCode, key, newPresences);
+          })
+          .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+            console.log("[room:%s] presence LEAVE key=%s presences=%o", roomCode, key, leftPresences);
+          })
+          .on("broadcast", { event: "room_sync_request" }, async ({ payload }) => {
+            console.log("[room:%s] received sync request from", roomCode, payload);
             if (!localPlayerRef.current?.isHost || !roomRef.current) return;
             await publishRoomState(channel, roomRef.current);
           })
           .on("broadcast", { event: "room_state" }, ({ payload }) => {
+            console.log("[room:%s] received room_state, players:", roomCode, (payload as GameRoom)?.players?.length);
             const mergedRoom = mergeRoom(roomRef.current, payload as Partial<GameRoom>);
             if (mergedRoom) {
               setRoomState(mergedRoom);
