@@ -23,6 +23,21 @@ const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
 const COUNTDOWN_SYNC_DELAY_MS = 1000;
 
+/**
+ * Deterministically derive the shared round start timestamp from the shared
+ * countdown start timestamp. Every player has `countdownStartedAt` (broadcast
+ * by the host as soon as the countdown begins), so every player can compute
+ * the same `roundStartedAt` without waiting for a separate `game_active`
+ * broadcast. This eliminates the race where a late `game_active` broadcast
+ * leaves a player's timer stuck at 0:00.
+ */
+function deriveRoundStartedAt(countdownStartedAt: string | null): string | null {
+  if (!countdownStartedAt) return null;
+  const startedMs = new Date(countdownStartedAt).getTime();
+  if (!Number.isFinite(startedMs)) return null;
+  return new Date(startedMs + COUNTDOWN_SECONDS * 1000).toISOString();
+}
+
 function generateCode(): string {
   let code = "";
   for (let index = 0; index < 4; index += 1) {
