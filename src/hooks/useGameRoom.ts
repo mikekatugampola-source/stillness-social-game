@@ -537,6 +537,35 @@ export function useGameRoom() {
 
   useEffect(() => cleanup, [cleanup]);
 
+  // Refetch room state on app foreground by re-requesting sync from host
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState !== "visible") return;
+      const channel = channelRef.current;
+      const localPlayer = localPlayerRef.current;
+      if (!channel || !localPlayer) return;
+
+      console.log("[room] app foregrounded, re-tracking & requesting sync");
+      try {
+        await channel.track(buildPresencePayload(localPlayer));
+        if (!localPlayer.isHost) {
+          await channel.send({
+            type: "broadcast",
+            event: "room_sync_request",
+            payload: { playerId: localPlayer.playerId },
+          });
+        } else if (roomRef.current) {
+          await publishRoomState(channel, roomRef.current);
+        }
+      } catch (err) {
+        console.warn("[room] visibility resync failed", err);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [publishRoomState]);
+
+
   return {
     room,
     players: room?.players ?? [],
