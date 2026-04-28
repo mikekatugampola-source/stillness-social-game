@@ -9,7 +9,7 @@ const COUNTDOWN_SECONDS = 5;
 function getRemainingCount(countdownStartedAt: string | null): number {
   if (!countdownStartedAt) return COUNTDOWN_SECONDS;
   const elapsedSeconds = Math.floor((Date.now() - new Date(countdownStartedAt).getTime()) / 1000);
-  return Math.max(0, COUNTDOWN_SECONDS - elapsedSeconds);
+  return Math.max(0, Math.min(COUNTDOWN_SECONDS, COUNTDOWN_SECONDS - elapsedSeconds));
 }
 
 const Countdown = () => {
