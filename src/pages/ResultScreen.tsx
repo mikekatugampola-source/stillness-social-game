@@ -68,7 +68,7 @@ const ResultScreen = () => {
               className="text-foreground font-bold tracking-tight leading-none text-center"
               style={{ fontSize: "clamp(3rem, 12vw, 5rem)" }}
             >
-              You lost 💀
+              {isDareMode ? "You lost" : "You lost 💀"}
             </motion.h1>
 
             <motion.p
@@ -88,7 +88,7 @@ const ResultScreen = () => {
               className="text-foreground text-center font-light"
               style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
             >
-              They're filming you.
+              {isDareMode ? "Your friends are filming." : "They're filming you."}
             </motion.p>
           </>
         ) : (
