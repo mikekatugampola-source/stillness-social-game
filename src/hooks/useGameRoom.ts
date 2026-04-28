@@ -21,6 +21,9 @@ type GameRoomRow = {
 const db = supabase as any;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
+const SUPABASE_URL_DEBUG = (import.meta as any).env?.VITE_SUPABASE_URL ?? "(unknown)";
+// eslint-disable-next-line no-console
+console.info("[room] backend env", SUPABASE_URL_DEBUG);
 const PHASE_ORDER: Record<GameStatus, number> = {
   lobby: 0,
   arming: 1,
@@ -58,7 +61,25 @@ function generateCode(): string {
 }
 
 function generateId(): string {
-  return crypto.randomUUID();
+  const cryptoObj = typeof crypto !== "undefined" ? (crypto as Crypto & { randomUUID?: () => string }) : undefined;
+  if (cryptoObj?.randomUUID) {
+    try {
+      return cryptoObj.randomUUID();
+    } catch {
+      // fallthrough to manual generator
+    }
+  }
+  // RFC4122 v4 fallback for older WebViews (e.g. iOS < 15.4)
+  const bytes = new Uint8Array(16);
+  if (cryptoObj?.getRandomValues) {
+    cryptoObj.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
 
 function nowIso(): string {
@@ -303,6 +324,7 @@ export function useGameRoom() {
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const roomCode = generateCode();
+        console.info("[room] create attempt", { attempt, roomCode, env: SUPABASE_URL_DEBUG });
         const createdRoom = await callRoomAction("create_game_room", {
           p_room_code: roomCode,
           p_host_id: hostPlayer.playerId,
@@ -311,14 +333,22 @@ export function useGameRoom() {
         });
 
         if (createdRoom) {
+          // Verify persistence by re-reading immediately
+          const verified = await fetchRoomState(createdRoom.roomCode);
+          if (!verified) {
+            console.warn("[room] created room not visible on re-read", createdRoom.roomCode);
+          } else {
+            console.info("[room] created and verified", verified.roomCode);
+          }
           void subscribeToRoom(createdRoom.roomCode);
           return { room: createdRoom, playerId: hostPlayer.playerId };
         }
       }
 
+      console.error("[room] create failed after retries");
       return null;
     },
-    [callRoomAction, subscribeToRoom, syncServerClock]
+    [callRoomAction, fetchRoomState, subscribeToRoom, syncServerClock]
   );
 
   const joinRoom = useCallback(
@@ -340,6 +370,25 @@ export function useGameRoom() {
 
       setError(null);
       await syncServerClock();
+
+      console.info("[room] join lookup", { roomCode: normalizedCode, env: SUPABASE_URL_DEBUG });
+
+      // Pre-flight: confirm room exists on this backend (helps distinguish env mismatch vs missing row)
+      const { data: preflight, error: preflightError } = await db
+        .from("game_rooms")
+        .select("room_code,status")
+        .eq("room_code", normalizedCode)
+        .maybeSingle();
+
+      if (preflightError) {
+        console.warn("[room] join preflight error", preflightError);
+      } else if (!preflight) {
+        console.warn("[room] join preflight: no row for", normalizedCode, "in", SUPABASE_URL_DEBUG);
+        setError("Room not found");
+        return { ok: false as const, errorCode: "ROOM_NOT_FOUND" as const, message: "Room not found" };
+      } else {
+        console.info("[room] join preflight: found", preflight);
+      }
 
       const { data, error: rpcError } = await db.rpc("join_game_room", {
         p_room_code: normalizedCode,
