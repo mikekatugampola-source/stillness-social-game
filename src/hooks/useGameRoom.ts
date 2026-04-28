@@ -150,6 +150,23 @@ function allPlayersMotionEnabled(room: GameRoom): boolean {
   return room.players.length >= 2 && room.players.every((player) => player.motionEnabled);
 }
 
+function mergeMotionReadyRoom(currentRoom: GameRoom | null, incoming: Partial<GameRoom>): GameRoom | null {
+  const mergedRoom = mergeRoom(currentRoom, incoming);
+  if (!mergedRoom || !currentRoom || !incoming.players) return mergedRoom;
+
+  return normalizeRoom({
+    ...mergedRoom,
+    players: mergedRoom.players.map((player) => {
+      const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
+      const incomingPlayer = incoming.players?.find((item) => item.playerId === player.playerId);
+      return {
+        ...player,
+        motionEnabled: Boolean(currentPlayer?.motionEnabled || incomingPlayer?.motionEnabled || player.motionEnabled),
+      };
+    }),
+  });
+}
+
 export function useGameRoom() {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [playerId, setPlayerId] = useState("");
@@ -303,7 +320,7 @@ export function useGameRoom() {
           .on("broadcast", { event: "motion_ready" }, async ({ payload }) => {
             const incomingRoom = payload as Partial<GameRoom>;
             console.log("[room:%s] received motion_ready, players:", roomCode, incomingRoom?.players?.length);
-            const mergedRoom = mergeRoom(roomRef.current, incomingRoom);
+            const mergedRoom = mergeMotionReadyRoom(roomRef.current, incomingRoom);
             if (!mergedRoom) return;
             setRoomState(mergedRoom);
 
