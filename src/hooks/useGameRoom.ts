@@ -16,7 +16,7 @@ type PresenceMeta = {
   motion_enabled?: boolean;
 };
 
-type RoomBroadcastEvent = "room_state" | "room_sync_request" | "game_start" | "game_active" | "game_finished";
+type RoomBroadcastEvent = "room_state" | "room_sync_request" | "motion_ready" | "game_start" | "game_active" | "game_finished";
 type RoomChannel = ReturnType<typeof supabase.channel>;
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -195,6 +195,24 @@ export function useGameRoom() {
       });
     },
     []
+  );
+
+  const beginSharedCountdown = useCallback(
+    async (channel: RoomChannel, nextRoom: GameRoom) => {
+      if (nextRoom.status !== "arming" || !allPlayersMotionEnabled(nextRoom)) return false;
+
+      const countdownRoom = normalizeRoom({
+        ...nextRoom,
+        status: "countdown",
+        countdownStartedAt: nowIso(),
+      });
+
+      console.log("[room:%s] all motion enabled, starting shared countdown", countdownRoom.roomCode);
+      setRoomState(countdownRoom);
+      await publishRoomState(channel, countdownRoom, "game_start");
+      return true;
+    },
+    [publishRoomState, setRoomState]
   );
 
   const applyPresenceSync = useCallback(
