@@ -240,19 +240,28 @@ export function useGameRoom() {
 
         channel
           .on("presence", { event: "sync" }, async () => {
-            const syncedRoom = applyPresenceSync(
-              channel.presenceState() as Record<string, PresenceMeta[]>
-            );
+            const state = channel.presenceState() as Record<string, PresenceMeta[]>;
+            console.log("[room:%s] presence sync, keys:", roomCode, Object.keys(state));
+            const syncedRoom = applyPresenceSync(state);
 
             if (syncedRoom && localPlayerRef.current?.isHost) {
+              console.log("[room:%s] host rebroadcasting room_state, players:", roomCode, syncedRoom.players.length);
               await publishRoomState(channel, syncedRoom);
             }
           })
-          .on("broadcast", { event: "room_sync_request" }, async () => {
+          .on("presence", { event: "join" }, ({ key, newPresences }) => {
+            console.log("[room:%s] presence JOIN key=%s presences=%o", roomCode, key, newPresences);
+          })
+          .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+            console.log("[room:%s] presence LEAVE key=%s presences=%o", roomCode, key, leftPresences);
+          })
+          .on("broadcast", { event: "room_sync_request" }, async ({ payload }) => {
+            console.log("[room:%s] received sync request from", roomCode, payload);
             if (!localPlayerRef.current?.isHost || !roomRef.current) return;
             await publishRoomState(channel, roomRef.current);
           })
           .on("broadcast", { event: "room_state" }, ({ payload }) => {
+            console.log("[room:%s] received room_state, players:", roomCode, (payload as GameRoom)?.players?.length);
             const mergedRoom = mergeRoom(roomRef.current, payload as Partial<GameRoom>);
             if (mergedRoom) {
               setRoomState(mergedRoom);
@@ -409,8 +418,22 @@ export function useGameRoom() {
     });
 
     setRoomState(nextRoom);
+    console.log("[room:%s] toggleReady ->", currentRoom.roomCode, updatedPlayer.isReady);
     await channel.track(buildPresencePayload(updatedPlayer));
-  }, [setRoomState]);
+
+    // If we are the host, broadcast authoritative state so others update.
+    // If we are a player, request the host to rebroadcast (defense in depth
+    // in case the host's presence sync is delayed).
+    if (updatedPlayer.isHost) {
+      await publishRoomState(channel, nextRoom);
+    } else {
+      await channel.send({
+        type: "broadcast",
+        event: "room_sync_request",
+        payload: { playerId: updatedPlayer.playerId },
+      });
+    }
+  }, [publishRoomState, setRoomState]);
 
   const updateMode = useCallback(
     async (mode: GameMode) => {
@@ -527,6 +550,35 @@ export function useGameRoom() {
   }, [cleanup]);
 
   useEffect(() => cleanup, [cleanup]);
+
+  // Refetch room state on app foreground by re-requesting sync from host
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState !== "visible") return;
+      const channel = channelRef.current;
+      const localPlayer = localPlayerRef.current;
+      if (!channel || !localPlayer) return;
+
+      console.log("[room] app foregrounded, re-tracking & requesting sync");
+      try {
+        await channel.track(buildPresencePayload(localPlayer));
+        if (!localPlayer.isHost) {
+          await channel.send({
+            type: "broadcast",
+            event: "room_sync_request",
+            payload: { playerId: localPlayer.playerId },
+          });
+        } else if (roomRef.current) {
+          await publishRoomState(channel, roomRef.current);
+        }
+      } catch (err) {
+        console.warn("[room] visibility resync failed", err);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [publishRoomState]);
+
 
   return {
     room,
