@@ -347,6 +347,7 @@ export function useGameRoom() {
         displayName: hostName,
         isHost: true,
         isReady: true,
+        motionEnabled: false,
         joinedAt: nowIso(),
       };
 
@@ -377,6 +378,7 @@ export function useGameRoom() {
         displayName,
         isHost: false,
         isReady: false,
+        motionEnabled: false,
         joinedAt: nowIso(),
       };
 
