@@ -418,8 +418,22 @@ export function useGameRoom() {
     });
 
     setRoomState(nextRoom);
+    console.log("[room:%s] toggleReady ->", currentRoom.roomCode, updatedPlayer.isReady);
     await channel.track(buildPresencePayload(updatedPlayer));
-  }, [setRoomState]);
+
+    // If we are the host, broadcast authoritative state so others update.
+    // If we are a player, request the host to rebroadcast (defense in depth
+    // in case the host's presence sync is delayed).
+    if (updatedPlayer.isHost) {
+      await publishRoomState(channel, nextRoom);
+    } else {
+      await channel.send({
+        type: "broadcast",
+        event: "room_sync_request",
+        payload: { playerId: updatedPlayer.playerId },
+      });
+    }
+  }, [publishRoomState, setRoomState]);
 
   const updateMode = useCallback(
     async (mode: GameMode) => {
