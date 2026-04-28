@@ -64,7 +64,222 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      activate_game_if_ready: {
+        Args: { p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_game_room: {
+        Args: {
+          p_host_id: string
+          p_host_name: string
+          p_mode?: string
+          p_room_code: string
+        }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      finish_game_room: {
+        Args: { p_loser_id: string; p_loser_name: string; p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      join_game_room: {
+        Args: {
+          p_display_name: string
+          p_player_id: string
+          p_room_code: string
+        }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      mark_game_room_motion_enabled: {
+        Args: { p_player_id: string; p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_game_room_player_ready: {
+        Args: { p_is_ready: boolean; p_player_id: string; p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_game_arming: {
+        Args: { p_player_id: string; p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_game_room_dare: {
+        Args: { p_dare_text: string; p_player_id: string; p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_game_room_mode: {
+        Args: { p_mode: string; p_player_id: string; p_room_code: string }
+        Returns: {
+          countdown_started_at: string | null
+          dare_text: string | null
+          ended_at: string | null
+          host_id: string
+          loser_id: string | null
+          loser_name: string | null
+          mode: string
+          players: Json
+          room_code: string
+          round_started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "game_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never
