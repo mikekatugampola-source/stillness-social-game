@@ -11,7 +11,7 @@ const SETTLE_DURATION_MS = 2750;
 
 const ActiveGame = () => {
   const navigate = useNavigate();
-  const { room, playerId, players, reportLoss } = useGameRoomContext();
+  const { room, playerId, players, reportLoss, getSyncedNow } = useGameRoomContext();
 
   const [elapsed, setElapsed] = useState(0);
   const [gameActive, setGameActive] = useState(false);
@@ -100,7 +100,7 @@ const ActiveGame = () => {
     if (!roundStartMs) return;
 
     const tick = () => {
-      const pct = Math.min(1, Math.max(0, (Date.now() - roundStartMs) / SETTLE_DURATION_MS));
+      const pct = Math.min(1, Math.max(0, (getSyncedNow() - roundStartMs) / SETTLE_DURATION_MS));
       setSettleProgress(pct);
       setSettling(pct < 1);
       setGameActive(pct >= 1 && room.status === "playing");
@@ -111,16 +111,16 @@ const ActiveGame = () => {
     return () => {
       clearInterval(interval);
     };
-  }, [room, navigate, roundStartMs]);
+  }, [getSyncedNow, room, navigate, roundStartMs]);
 
   // Timer — driven by the shared round start timestamp so every player sees the same elapsed time.
   useEffect(() => {
     if (!roundStartMs) return;
-    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - roundStartMs) / 1000)));
+    const tick = () => setElapsed(Math.max(0, Math.floor((getSyncedNow() - roundStartMs) / 1000)));
     tick();
     const interval = setInterval(tick, 100);
     return () => clearInterval(interval);
-  }, [roundStartMs]);
+  }, [getSyncedNow, roundStartMs]);
 
   const handleMotion = useCallback(() => {
     if (!gameActive || movementDetected) return;
