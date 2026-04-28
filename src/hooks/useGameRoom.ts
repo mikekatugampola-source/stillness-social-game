@@ -21,6 +21,9 @@ type GameRoomRow = {
 const db = supabase as any;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
+const SUPABASE_URL_DEBUG = (import.meta as any).env?.VITE_SUPABASE_URL ?? "(unknown)";
+// eslint-disable-next-line no-console
+console.info("[room] backend env", SUPABASE_URL_DEBUG);
 const PHASE_ORDER: Record<GameStatus, number> = {
   lobby: 0,
   arming: 1,
