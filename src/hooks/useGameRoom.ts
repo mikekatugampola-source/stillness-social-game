@@ -648,13 +648,21 @@ export function useGameRoom() {
     setRoomState(nextRoom);
     await channel.track(buildPresencePayload(updatedPlayer));
 
+    // Always send motion_ready as a small DELTA so we never overwrite the
+    // host's authoritative status / countdownStartedAt / roundStartedAt with
+    // a stale snapshot from this client.
+    const motionReadyDelta = {
+      playerId: updatedPlayer.playerId,
+      motionEnabled: true,
+    };
+
     if (updatedPlayer.isHost) {
       const countdownStarted = await beginSharedCountdown(channel, nextRoom);
       if (!countdownStarted) {
-        await publishRoomState(channel, nextRoom, "motion_ready");
+        await channel.send({ type: "broadcast", event: "motion_ready", payload: motionReadyDelta });
       }
     } else {
-      await publishRoomState(channel, nextRoom, "motion_ready");
+      await channel.send({ type: "broadcast", event: "motion_ready", payload: motionReadyDelta });
       await channel.send({
         type: "broadcast",
         event: "room_sync_request",
