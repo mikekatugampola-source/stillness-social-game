@@ -178,20 +178,28 @@ function allPlayersMotionEnabled(room: GameRoom): boolean {
   return room.players.length >= 2 && room.players.every((player) => player.motionEnabled);
 }
 
-function mergeMotionReadyRoom(currentRoom: GameRoom | null, incoming: Partial<GameRoom>): GameRoom | null {
-  const mergedRoom = mergeRoom(currentRoom, incoming);
-  if (!mergedRoom || !currentRoom || !incoming.players) return mergedRoom;
+/**
+ * Apply a per-player motion-ready signal as a DELTA. We never let a player's
+ * stale view of the room overwrite authoritative fields like `status`,
+ * `countdownStartedAt`, or `roundStartedAt` — only the player's own
+ * `motionEnabled` flag is updated.
+ */
+function applyMotionReadyDelta(
+  currentRoom: GameRoom | null,
+  signal: { playerId: string; motionEnabled: boolean }
+): GameRoom | null {
+  if (!currentRoom) return null;
+
+  const hasPlayer = currentRoom.players.some((player) => player.playerId === signal.playerId);
+  if (!hasPlayer) return currentRoom;
 
   return normalizeRoom({
-    ...mergedRoom,
-    players: mergedRoom.players.map((player) => {
-      const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
-      const incomingPlayer = incoming.players?.find((item) => item.playerId === player.playerId);
-      return {
-        ...player,
-        motionEnabled: Boolean(currentPlayer?.motionEnabled || incomingPlayer?.motionEnabled || player.motionEnabled),
-      };
-    }),
+    ...currentRoom,
+    players: currentRoom.players.map((player) =>
+      player.playerId === signal.playerId
+        ? { ...player, motionEnabled: signal.motionEnabled || player.motionEnabled }
+        : player
+    ),
   });
 }
 
@@ -352,15 +360,20 @@ export function useGameRoom() {
             }
           })
           .on("broadcast", { event: "motion_ready" }, async ({ payload }) => {
-            const incomingRoom = payload as Partial<GameRoom>;
-            console.log("[room:%s] received motion_ready, players:", roomCode, incomingRoom?.players?.length);
-            const mergedRoom = mergeMotionReadyRoom(roomRef.current, incomingRoom);
+            const signal = payload as { playerId?: string; motionEnabled?: boolean } | null;
+            console.log("[room:%s] received motion_ready delta:", roomCode, signal);
+            if (!signal?.playerId) return;
+            const mergedRoom = applyMotionReadyDelta(roomRef.current, {
+              playerId: signal.playerId,
+              motionEnabled: signal.motionEnabled !== false,
+            });
             if (!mergedRoom) return;
             setRoomState(mergedRoom);
 
             if (localPlayerRef.current?.isHost) {
               const countdownStarted = await beginSharedCountdown(channel, mergedRoom);
               if (!countdownStarted) {
+                // Re-broadcast authoritative full state so every client converges.
                 await publishRoomState(channel, mergedRoom);
               }
             }
@@ -635,13 +648,21 @@ export function useGameRoom() {
     setRoomState(nextRoom);
     await channel.track(buildPresencePayload(updatedPlayer));
 
+    // Always send motion_ready as a small DELTA so we never overwrite the
+    // host's authoritative status / countdownStartedAt / roundStartedAt with
+    // a stale snapshot from this client.
+    const motionReadyDelta = {
+      playerId: updatedPlayer.playerId,
+      motionEnabled: true,
+    };
+
     if (updatedPlayer.isHost) {
       const countdownStarted = await beginSharedCountdown(channel, nextRoom);
       if (!countdownStarted) {
-        await publishRoomState(channel, nextRoom, "motion_ready");
+        await channel.send({ type: "broadcast", event: "motion_ready", payload: motionReadyDelta });
       }
     } else {
-      await publishRoomState(channel, nextRoom, "motion_ready");
+      await channel.send({ type: "broadcast", event: "motion_ready", payload: motionReadyDelta });
       await channel.send({
         type: "broadcast",
         event: "room_sync_request",
