@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useMotionDetection } from "@/hooks/useMotionDetection";
 import { useGameRoomContext } from "@/context/GameRoomContext";
 import { triggerGameOverFeedback } from "@/lib/gameOverFeedback";
+import { KeepAwake } from "@capacitor-community/keep-awake";
 
 const ActiveGame = () => {
   const navigate = useNavigate();
