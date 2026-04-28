@@ -22,8 +22,9 @@ const db = supabase as any;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
 const SUPABASE_URL_DEBUG = (import.meta as any).env?.VITE_SUPABASE_URL ?? "(unknown)";
+const SUPABASE_PROJECT_ID_DEBUG = (import.meta as any).env?.VITE_SUPABASE_PROJECT_ID ?? "(unknown)";
 // eslint-disable-next-line no-console
-console.info("[room] backend env", SUPABASE_URL_DEBUG);
+console.info("[room-debug] backend env", { url: SUPABASE_URL_DEBUG, projectId: SUPABASE_PROJECT_ID_DEBUG });
 const PHASE_ORDER: Record<GameStatus, number> = {
   lobby: 0,
   arming: 1,
@@ -88,6 +89,14 @@ function nowIso(): string {
 
 function normalizeRoomCode(code: string): string {
   return code.replace(/\s+/g, "").toUpperCase();
+}
+
+function getBackendDebugInfo() {
+  return {
+    url: SUPABASE_URL_DEBUG,
+    projectId: SUPABASE_PROJECT_ID_DEBUG,
+    appOrigin: typeof window !== "undefined" ? window.location.origin : "(unknown)",
+  };
 }
 
 function sortPlayers(players: RoomPlayer[]): RoomPlayer[] {
