@@ -201,12 +201,17 @@ function mergeRoom(
       incoming.players ?? [],
       incoming.mode ?? "classic"
     );
+  const status = resolveStatus(baseRoom.status, incoming.status);
+  const useIncomingFinish = status === "finished" && shouldUseIncomingFinish(baseRoom, incoming);
 
   return normalizeRoom({
     ...baseRoom,
     ...incoming,
-    status: resolveStatus(baseRoom.status, incoming.status),
+    status,
     players: incoming.players ?? baseRoom.players,
+    loserId: useIncomingFinish ? incoming.loserId ?? null : baseRoom.loserId,
+    loserName: useIncomingFinish ? incoming.loserName ?? null : baseRoom.loserName,
+    endedAt: useIncomingFinish ? incoming.endedAt ?? null : baseRoom.endedAt,
   });
 }
 
