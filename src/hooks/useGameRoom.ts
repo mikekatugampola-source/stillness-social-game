@@ -306,6 +306,7 @@ export function useGameRoom() {
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const roomCode = generateCode();
+        console.info("[room] create attempt", { attempt, roomCode, env: SUPABASE_URL_DEBUG });
         const createdRoom = await callRoomAction("create_game_room", {
           p_room_code: roomCode,
           p_host_id: hostPlayer.playerId,
@@ -314,14 +315,22 @@ export function useGameRoom() {
         });
 
         if (createdRoom) {
+          // Verify persistence by re-reading immediately
+          const verified = await fetchRoomState(createdRoom.roomCode);
+          if (!verified) {
+            console.warn("[room] created room not visible on re-read", createdRoom.roomCode);
+          } else {
+            console.info("[room] created and verified", verified.roomCode);
+          }
           void subscribeToRoom(createdRoom.roomCode);
           return { room: createdRoom, playerId: hostPlayer.playerId };
         }
       }
 
+      console.error("[room] create failed after retries");
       return null;
     },
-    [callRoomAction, subscribeToRoom, syncServerClock]
+    [callRoomAction, fetchRoomState, subscribeToRoom, syncServerClock]
   );
 
   const joinRoom = useCallback(
@@ -343,6 +352,25 @@ export function useGameRoom() {
 
       setError(null);
       await syncServerClock();
+
+      console.info("[room] join lookup", { roomCode: normalizedCode, env: SUPABASE_URL_DEBUG });
+
+      // Pre-flight: confirm room exists on this backend (helps distinguish env mismatch vs missing row)
+      const { data: preflight, error: preflightError } = await db
+        .from("game_rooms")
+        .select("room_code,status")
+        .eq("room_code", normalizedCode)
+        .maybeSingle();
+
+      if (preflightError) {
+        console.warn("[room] join preflight error", preflightError);
+      } else if (!preflight) {
+        console.warn("[room] join preflight: no row for", normalizedCode, "in", SUPABASE_URL_DEBUG);
+        setError("Room not found");
+        return { ok: false as const, errorCode: "ROOM_NOT_FOUND" as const, message: "Room not found" };
+      } else {
+        console.info("[room] join preflight: found", preflight);
+      }
 
       const { data, error: rpcError } = await db.rpc("join_game_room", {
         p_room_code: normalizedCode,
