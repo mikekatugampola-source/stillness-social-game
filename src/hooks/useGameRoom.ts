@@ -273,7 +273,10 @@ export function useGameRoom() {
 
             if (syncedRoom && localPlayerRef.current?.isHost) {
               console.log("[room:%s] host rebroadcasting room_state, players:", roomCode, syncedRoom.players.length);
-              await publishRoomState(channel, syncedRoom);
+              const countdownStarted = await beginSharedCountdown(channel, syncedRoom);
+              if (!countdownStarted) {
+                await publishRoomState(channel, syncedRoom);
+              }
             }
           })
           .on("presence", { event: "join" }, ({ key, newPresences }) => {
@@ -285,13 +288,30 @@ export function useGameRoom() {
           .on("broadcast", { event: "room_sync_request" }, async ({ payload }) => {
             console.log("[room:%s] received sync request from", roomCode, payload);
             if (!localPlayerRef.current?.isHost || !roomRef.current) return;
-            await publishRoomState(channel, roomRef.current);
+            const countdownStarted = await beginSharedCountdown(channel, roomRef.current);
+            if (!countdownStarted) {
+              await publishRoomState(channel, roomRef.current);
+            }
           })
           .on("broadcast", { event: "room_state" }, ({ payload }) => {
             console.log("[room:%s] received room_state, players:", roomCode, (payload as GameRoom)?.players?.length);
             const mergedRoom = mergeRoom(roomRef.current, payload as Partial<GameRoom>);
             if (mergedRoom) {
               setRoomState(mergedRoom);
+            }
+          })
+          .on("broadcast", { event: "motion_ready" }, async ({ payload }) => {
+            const incomingRoom = payload as Partial<GameRoom>;
+            console.log("[room:%s] received motion_ready, players:", roomCode, incomingRoom?.players?.length);
+            const mergedRoom = mergeRoom(roomRef.current, incomingRoom);
+            if (!mergedRoom) return;
+            setRoomState(mergedRoom);
+
+            if (localPlayerRef.current?.isHost) {
+              const countdownStarted = await beginSharedCountdown(channel, mergedRoom);
+              if (!countdownStarted) {
+                await publishRoomState(channel, mergedRoom);
+              }
             }
           })
           .on("broadcast", { event: "game_start" }, ({ payload }) => {
@@ -360,7 +380,7 @@ export function useGameRoom() {
         channelRef.current = channel;
       });
     },
-    [applyPresenceSync, cleanup, publishRoomState, setRoomState]
+    [applyPresenceSync, beginSharedCountdown, cleanup, publishRoomState, setRoomState]
   );
 
   const createRoom = useCallback(
