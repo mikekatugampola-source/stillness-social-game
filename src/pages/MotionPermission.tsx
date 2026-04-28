@@ -43,15 +43,11 @@ const MotionPermission = () => {
       return;
     }
 
-    if (room.status === "active") {
+    if (room.status === "playing") {
       navigate("/game", { replace: true });
       return;
     }
 
-    if (!needsPermissionRequest()) {
-      setStatus("granted");
-      void confirmMotionEnabled();
-    }
   }, [confirmMotionEnabled, navigate, room]);
 
   const handleEnable = useCallback(async () => {

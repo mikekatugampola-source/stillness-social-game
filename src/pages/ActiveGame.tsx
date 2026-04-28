@@ -89,13 +89,21 @@ const ActiveGame = () => {
       navigate("/", { replace: true });
       return;
     }
+    if (room.status === "arming") {
+      navigate("/motion-permission", { replace: true });
+      return;
+    }
+    if (room.status === "countdown") {
+      navigate("/countdown", { replace: true });
+      return;
+    }
     if (!roundStartMs) return;
 
     const tick = () => {
       const pct = Math.min(1, Math.max(0, (Date.now() - roundStartMs) / SETTLE_DURATION_MS));
       setSettleProgress(pct);
       setSettling(pct < 1);
-      setGameActive(pct >= 1 && room.status === "active");
+      setGameActive(pct >= 1 && room.status === "playing");
     };
 
     tick();

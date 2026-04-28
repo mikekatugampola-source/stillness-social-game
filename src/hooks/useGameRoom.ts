@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { GameMode, GameRoom, RoomPlayer } from "@/lib/game-types";
+import type { GameMode, GameRoom, GameStatus, RoomPlayer } from "@/lib/game-types";
 
 type PresenceMeta = {
   playerId?: string;
@@ -22,6 +22,39 @@ type RoomChannel = ReturnType<typeof supabase.channel>;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
 const COUNTDOWN_SYNC_DELAY_MS = 1000;
+const PHASE_ORDER: Record<GameStatus, number> = {
+  lobby: 0,
+  arming: 1,
+  countdown: 2,
+  playing: 3,
+  finished: 4,
+};
+
+function normalizeStatus(status: unknown): GameStatus {
+  if (status === "waiting") return "lobby";
+  if (status === "active") return "playing";
+  if (status === "arming" || status === "countdown" || status === "playing" || status === "finished") {
+    return status;
+  }
+  return "lobby";
+}
+
+function resolveStatus(currentStatus: GameStatus | null, incomingStatus: unknown): GameStatus {
+  const incoming = normalizeStatus(incomingStatus);
+  if (!currentStatus) return incoming;
+  return PHASE_ORDER[incoming] >= PHASE_ORDER[currentStatus] ? incoming : currentStatus;
+}
+
+function shouldUseIncomingFinish(currentRoom: GameRoom, incoming: Partial<GameRoom>): boolean {
+  if (!incoming.loserId) return false;
+  if (currentRoom.status !== "finished" || !currentRoom.loserId) return true;
+
+  const currentEndedAt = currentRoom.endedAt ? new Date(currentRoom.endedAt).getTime() : Number.POSITIVE_INFINITY;
+  const incomingEndedAt = incoming.endedAt ? new Date(incoming.endedAt).getTime() : Number.POSITIVE_INFINITY;
+
+  if (incomingEndedAt !== currentEndedAt) return incomingEndedAt < currentEndedAt;
+  return incoming.loserId.localeCompare(currentRoom.loserId) < 0;
+}
 
 /**
  * Deterministically derive the shared round start timestamp from the shared
@@ -106,6 +139,7 @@ function dedupePlayers(players: RoomPlayer[]): RoomPlayer[] {
 function normalizeRoom(nextRoom: GameRoom): GameRoom {
   const players = dedupePlayers(nextRoom.players);
   const hostId = nextRoom.hostId || players.find((player) => player.isHost)?.playerId || "";
+  const status = normalizeStatus(nextRoom.status);
 
   const countdownStartedAt = nextRoom.countdownStartedAt ?? null;
   // Always prefer an explicit roundStartedAt, but fall back to a deterministic
@@ -116,6 +150,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
 
   return {
     ...nextRoom,
+    status,
     hostId,
     players: players.map((player) => ({
       ...player,
@@ -141,7 +176,7 @@ function createRoomState(
     roomCode,
     hostId,
     mode,
-    status: "waiting",
+    status: "lobby",
     players,
     loserId: null,
     loserName: null,
@@ -166,11 +201,17 @@ function mergeRoom(
       incoming.players ?? [],
       incoming.mode ?? "classic"
     );
+  const status = resolveStatus(baseRoom.status, incoming.status);
+  const useIncomingFinish = status === "finished" && shouldUseIncomingFinish(baseRoom, incoming);
 
   return normalizeRoom({
     ...baseRoom,
     ...incoming,
+    status,
     players: incoming.players ?? baseRoom.players,
+    loserId: useIncomingFinish ? incoming.loserId ?? null : baseRoom.loserId,
+    loserName: useIncomingFinish ? incoming.loserName ?? null : baseRoom.loserName,
+    endedAt: useIncomingFinish ? incoming.endedAt ?? null : baseRoom.endedAt,
   });
 }
 
@@ -288,7 +329,7 @@ export function useGameRoom() {
           const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
           return {
             ...player,
-            motionEnabled: Boolean(currentPlayer?.motionEnabled || player.motionEnabled),
+            motionEnabled: Boolean(currentPlayer?.motionEnabled),
           };
         }),
       });
@@ -391,7 +432,7 @@ export function useGameRoom() {
           .on("broadcast", { event: "game_active" }, ({ payload }) => {
             const mergedRoom = mergeRoom(roomRef.current, {
               ...(payload as Partial<GameRoom>),
-              status: "active",
+              status: "playing",
             });
 
             if (mergedRoom) {
@@ -651,7 +692,7 @@ export function useGameRoom() {
 
     const nextRoom = normalizeRoom({
       ...currentRoom,
-      status: currentRoom.status === "waiting" ? "arming" : currentRoom.status,
+      status: currentRoom.status === "lobby" ? "arming" : currentRoom.status,
       players: dedupePlayers([
         ...currentRoom.players.filter((player) => player.playerId !== updatedPlayer.playerId),
         updatedPlayer,
@@ -702,7 +743,7 @@ export function useGameRoom() {
 
     const nextRoom = normalizeRoom({
       ...currentRoom,
-      status: "active",
+      status: "playing",
       roundStartedAt: currentRoom.roundStartedAt ?? sharedRoundStartedAt,
     });
 
