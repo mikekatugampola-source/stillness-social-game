@@ -340,21 +340,41 @@ export function useGameRoom() {
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const roomCode = generateCode();
-        console.info("[room] create attempt", { attempt, roomCode, env: SUPABASE_URL_DEBUG });
-        const createdRoom = await callRoomAction("create_game_room", {
+        console.info("[room-debug] create write", { attempt, roomCode, backend: getBackendDebugInfo() });
+
+        const { data, error: createError } = await db.rpc("create_game_room", {
           p_room_code: roomCode,
           p_host_id: hostPlayer.playerId,
           p_host_name: hostPlayer.displayName,
           p_mode: mode,
         });
 
+        if (createError) {
+          const raw = `${createError.message ?? ""}`;
+          console.warn("[room-debug] create insert failed", {
+            roomCode,
+            backend: getBackendDebugInfo(),
+            error: createError,
+          });
+          if (raw.includes("ROOM_CODE_EXISTS") || raw.includes("duplicate key")) continue;
+          setError(createError.message ?? "Could not create room");
+          return null;
+        }
+
+        console.info("[room-debug] create insert succeeded", { roomCode, backend: getBackendDebugInfo(), returnedRow: Boolean(data) });
+        void syncServerClock();
+        const createdRoom = applyRoomRow(data as GameRoomRow | null);
+
         if (createdRoom) {
           // Verify persistence by re-reading immediately
           const verified = await fetchRoomState(createdRoom.roomCode);
           if (!verified) {
-            console.warn("[room] created room not visible on re-read", createdRoom.roomCode);
+            console.warn("[room-debug] created room not visible on re-read", {
+              roomCode: createdRoom.roomCode,
+              backend: getBackendDebugInfo(),
+            });
           } else {
-            console.info("[room] created and verified", verified.roomCode);
+            console.info("[room-debug] created and verified", { roomCode: verified.roomCode, backend: getBackendDebugInfo() });
           }
           void subscribeToRoom(createdRoom.roomCode);
           return { room: createdRoom, playerId: hostPlayer.playerId };
@@ -364,7 +384,7 @@ export function useGameRoom() {
       console.error("[room] create failed after retries");
       return null;
     },
-    [callRoomAction, fetchRoomState, subscribeToRoom, syncServerClock]
+    [applyRoomRow, fetchRoomState, subscribeToRoom, syncServerClock]
   );
 
   const joinRoom = useCallback(
