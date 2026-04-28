@@ -360,15 +360,20 @@ export function useGameRoom() {
             }
           })
           .on("broadcast", { event: "motion_ready" }, async ({ payload }) => {
-            const incomingRoom = payload as Partial<GameRoom>;
-            console.log("[room:%s] received motion_ready, players:", roomCode, incomingRoom?.players?.length);
-            const mergedRoom = mergeMotionReadyRoom(roomRef.current, incomingRoom);
+            const signal = payload as { playerId?: string; motionEnabled?: boolean } | null;
+            console.log("[room:%s] received motion_ready delta:", roomCode, signal);
+            if (!signal?.playerId) return;
+            const mergedRoom = applyMotionReadyDelta(roomRef.current, {
+              playerId: signal.playerId,
+              motionEnabled: signal.motionEnabled !== false,
+            });
             if (!mergedRoom) return;
             setRoomState(mergedRoom);
 
             if (localPlayerRef.current?.isHost) {
               const countdownStarted = await beginSharedCountdown(channel, mergedRoom);
               if (!countdownStarted) {
+                // Re-broadcast authoritative full state so every client converges.
                 await publishRoomState(channel, mergedRoom);
               }
             }
