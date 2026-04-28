@@ -10,18 +10,25 @@ const JoinTable = () => {
   const [name, setName] = useState("");
   const { joinRoom } = useGameRoomContext();
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleJoin = async () => {
-    const roomCode = code.trim();
+    const roomCode = code.replace(/\s+/g, "").toUpperCase();
     const displayName = name.trim();
     if (!roomCode || !displayName || loading) return;
 
     setLoading(true);
+    setErrorMessage(null);
     try {
       const result = await joinRoom(roomCode, displayName);
-      if (result) {
+      if (result?.ok) {
         navigate("/waiting");
+      } else {
+        setErrorMessage(result?.message ?? "Couldn't join. Try again.");
       }
+    } catch (err) {
+      console.warn("[join] unexpected", err);
+      setErrorMessage("Couldn't join. Try again.");
     } finally {
       setLoading(false);
     }
@@ -41,7 +48,7 @@ const JoinTable = () => {
           type="text"
           placeholder="Room code"
           value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onChange={(e) => setCode(e.target.value.replace(/\s+/g, "").toUpperCase())}
           maxLength={4}
           autoFocus
           className="w-full rounded-2xl border border-border bg-secondary px-5 py-4 text-center text-2xl font-semibold tracking-[0.3em] text-foreground placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -56,6 +63,12 @@ const JoinTable = () => {
           className="w-full rounded-2xl border border-border bg-secondary px-5 py-4 text-center text-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
         />
+
+        {errorMessage && (
+          <p className="text-center text-sm text-destructive" role="alert">
+            {errorMessage}
+          </p>
+        )}
 
         <Button onClick={handleJoin} disabled={!code.trim() || !name.trim() || loading} size="lg" className="w-full">
           {loading ? "Joining..." : "Join"}
