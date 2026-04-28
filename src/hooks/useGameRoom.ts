@@ -465,10 +465,24 @@ export function useGameRoom() {
       setError(null);
       setRoomState(nextRoom);
 
-      const channel = await subscribeToRoom(nextRoom.roomCode);
-      if (!channel) return null;
-
-      await publishRoomState(channel, nextRoom);
+      // Subscribe to realtime in the background. Do NOT block room creation /
+      // navigation on the realtime channel — if Supabase realtime is slow or
+      // fails, the host should still enter the lobby with their room code.
+      void subscribeToRoom(nextRoom.roomCode)
+        .then(async (channel) => {
+          if (channel) {
+            try {
+              await publishRoomState(channel, nextRoom);
+            } catch (err) {
+              console.warn("[room:%s] failed to publish initial state", nextRoom.roomCode, err);
+            }
+          } else {
+            console.warn("[room:%s] realtime subscribe returned no channel", nextRoom.roomCode);
+          }
+        })
+        .catch((err) => {
+          console.warn("[room:%s] realtime subscribe error", nextRoom.roomCode, err);
+        });
 
       return {
         room: roomRef.current ?? nextRoom,
