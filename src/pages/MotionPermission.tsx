@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Smartphone } from "lucide-react";
 import { unlockAudio } from "@/lib/audioManager";
+import { useGameRoomContext } from "@/context/GameRoomContext";
 
 const needsPermissionRequest = () => {
   return (
@@ -16,15 +17,42 @@ const needsPermissionRequest = () => {
 
 const MotionPermission = () => {
   const navigate = useNavigate();
+  const { room, playerId, markMotionEnabled } = useGameRoomContext();
   const [status, setStatus] = useState<"prompt" | "denied" | "granted">("prompt");
   const [loading, setLoading] = useState(false);
+  const hasMarkedMotionEnabled = useRef(false);
 
-  // If platform doesn't need explicit permission, skip straight to countdown
+  const me = room?.players.find((player) => player.playerId === playerId);
+  const isWaitingForPlayers = room?.status === "arming" && (status === "granted" || me?.motionEnabled);
+
+  const confirmMotionEnabled = useCallback(async () => {
+    if (hasMarkedMotionEnabled.current) return;
+    hasMarkedMotionEnabled.current = true;
+    await markMotionEnabled();
+  }, [markMotionEnabled]);
+
+  // If platform doesn't need explicit permission, mark this player ready for the shared countdown.
   useEffect(() => {
-    if (!needsPermissionRequest()) {
-      navigate("/countdown", { replace: true });
+    if (!room) {
+      navigate("/", { replace: true });
+      return;
     }
-  }, [navigate]);
+
+    if (room.status === "countdown") {
+      navigate("/countdown", { replace: true });
+      return;
+    }
+
+    if (room.status === "active") {
+      navigate("/game", { replace: true });
+      return;
+    }
+
+    if (!needsPermissionRequest()) {
+      setStatus("granted");
+      void confirmMotionEnabled();
+    }
+  }, [confirmMotionEnabled, navigate, room]);
 
   const handleEnable = useCallback(async () => {
     setLoading(true);
@@ -62,11 +90,32 @@ const MotionPermission = () => {
 
     if (granted) {
       setStatus("granted");
-      setTimeout(() => navigate("/countdown", { replace: true }), 300);
+      await confirmMotionEnabled();
     } else {
       setStatus("denied");
     }
-  }, [navigate]);
+  }, [confirmMotionEnabled]);
+
+  if (isWaitingForPlayers) {
+    return (
+      <div className="screen-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex flex-col items-center gap-6 px-8 text-center"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Smartphone className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="text-title text-foreground">Motion Enabled</h1>
+          <p className="text-caption text-sm max-w-[280px]">
+            Waiting for other players…
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (status === "denied") {
     return (

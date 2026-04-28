@@ -7,17 +7,21 @@ type PresenceMeta = {
   displayName?: string;
   isHost?: boolean;
   isReady?: boolean;
+  motionEnabled?: boolean;
   joinedAt?: string;
   id?: string;
   name?: string;
   is_host?: boolean;
   is_ready?: boolean;
+  motion_enabled?: boolean;
 };
 
-type RoomBroadcastEvent = "room_state" | "room_sync_request" | "game_start" | "game_active" | "game_finished";
+type RoomBroadcastEvent = "room_state" | "room_sync_request" | "motion_ready" | "game_start" | "game_active" | "game_finished";
 type RoomChannel = ReturnType<typeof supabase.channel>;
 
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const COUNTDOWN_SECONDS = 5;
+const COUNTDOWN_SYNC_DELAY_MS = 1000;
 
 function generateCode(): string {
   let code = "";
@@ -33,6 +37,10 @@ function generateId(): string {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function isoFromNow(delayMs: number): string {
+  return new Date(Date.now() + delayMs).toISOString();
 }
 
 function normalizeRoomCode(code: string): string {
@@ -52,6 +60,7 @@ function parsePresencePlayer(meta: PresenceMeta): RoomPlayer | null {
     displayName: meta.displayName ?? meta.name ?? "Player",
     isHost: parseBool(meta.isHost, parseBool(meta.is_host)),
     isReady: parseBool(meta.isReady, parseBool(meta.is_ready)),
+    motionEnabled: parseBool(meta.motionEnabled, parseBool(meta.motion_enabled)),
     joinedAt: meta.joinedAt ?? nowIso(),
   };
 }
@@ -62,6 +71,7 @@ function buildPresencePayload(player: RoomPlayer): PresenceMeta {
     displayName: player.displayName,
     isHost: player.isHost,
     isReady: player.isReady,
+    motionEnabled: player.motionEnabled,
     joinedAt: player.joinedAt,
   };
 }
@@ -88,6 +98,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
     players: players.map((player) => ({
       ...player,
       isHost: hostId ? player.playerId === hostId : player.isHost,
+      motionEnabled: player.motionEnabled ?? false,
     })),
     loserId: nextRoom.loserId ?? null,
     loserName: nextRoom.loserName ?? null,
@@ -141,6 +152,27 @@ function mergeRoom(
   });
 }
 
+function allPlayersMotionEnabled(room: GameRoom): boolean {
+  return room.players.length >= 2 && room.players.every((player) => player.motionEnabled);
+}
+
+function mergeMotionReadyRoom(currentRoom: GameRoom | null, incoming: Partial<GameRoom>): GameRoom | null {
+  const mergedRoom = mergeRoom(currentRoom, incoming);
+  if (!mergedRoom || !currentRoom || !incoming.players) return mergedRoom;
+
+  return normalizeRoom({
+    ...mergedRoom,
+    players: mergedRoom.players.map((player) => {
+      const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
+      const incomingPlayer = incoming.players?.find((item) => item.playerId === player.playerId);
+      return {
+        ...player,
+        motionEnabled: Boolean(currentPlayer?.motionEnabled || incomingPlayer?.motionEnabled || player.motionEnabled),
+      };
+    }),
+  });
+}
+
 export function useGameRoom() {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [playerId, setPlayerId] = useState("");
@@ -188,6 +220,24 @@ export function useGameRoom() {
     []
   );
 
+  const beginSharedCountdown = useCallback(
+    async (channel: RoomChannel, nextRoom: GameRoom) => {
+      if (nextRoom.status !== "arming" || !allPlayersMotionEnabled(nextRoom)) return false;
+
+      const countdownRoom = normalizeRoom({
+        ...nextRoom,
+        status: "countdown",
+        countdownStartedAt: isoFromNow(COUNTDOWN_SYNC_DELAY_MS),
+      });
+
+      console.log("[room:%s] all motion enabled, starting shared countdown", countdownRoom.roomCode);
+      setRoomState(countdownRoom);
+      await publishRoomState(channel, countdownRoom, "game_start");
+      return true;
+    },
+    [publishRoomState, setRoomState]
+  );
+
   const applyPresenceSync = useCallback(
     (presenceState: Record<string, PresenceMeta[]>) => {
       const currentRoom = roomRef.current;
@@ -204,7 +254,13 @@ export function useGameRoom() {
         players: dedupePlayers([
           ...(localPlayer ? [localPlayer] : []),
           ...parsedPlayers,
-        ]),
+        ]).map((player) => {
+          const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
+          return {
+            ...player,
+            motionEnabled: Boolean(currentPlayer?.motionEnabled || player.motionEnabled),
+          };
+        }),
       });
 
       setRoomState(nextRoom);
@@ -246,7 +302,10 @@ export function useGameRoom() {
 
             if (syncedRoom && localPlayerRef.current?.isHost) {
               console.log("[room:%s] host rebroadcasting room_state, players:", roomCode, syncedRoom.players.length);
-              await publishRoomState(channel, syncedRoom);
+              const countdownStarted = await beginSharedCountdown(channel, syncedRoom);
+              if (!countdownStarted) {
+                await publishRoomState(channel, syncedRoom);
+              }
             }
           })
           .on("presence", { event: "join" }, ({ key, newPresences }) => {
@@ -258,13 +317,30 @@ export function useGameRoom() {
           .on("broadcast", { event: "room_sync_request" }, async ({ payload }) => {
             console.log("[room:%s] received sync request from", roomCode, payload);
             if (!localPlayerRef.current?.isHost || !roomRef.current) return;
-            await publishRoomState(channel, roomRef.current);
+            const countdownStarted = await beginSharedCountdown(channel, roomRef.current);
+            if (!countdownStarted) {
+              await publishRoomState(channel, roomRef.current);
+            }
           })
           .on("broadcast", { event: "room_state" }, ({ payload }) => {
             console.log("[room:%s] received room_state, players:", roomCode, (payload as GameRoom)?.players?.length);
             const mergedRoom = mergeRoom(roomRef.current, payload as Partial<GameRoom>);
             if (mergedRoom) {
               setRoomState(mergedRoom);
+            }
+          })
+          .on("broadcast", { event: "motion_ready" }, async ({ payload }) => {
+            const incomingRoom = payload as Partial<GameRoom>;
+            console.log("[room:%s] received motion_ready, players:", roomCode, incomingRoom?.players?.length);
+            const mergedRoom = mergeMotionReadyRoom(roomRef.current, incomingRoom);
+            if (!mergedRoom) return;
+            setRoomState(mergedRoom);
+
+            if (localPlayerRef.current?.isHost) {
+              const countdownStarted = await beginSharedCountdown(channel, mergedRoom);
+              if (!countdownStarted) {
+                await publishRoomState(channel, mergedRoom);
+              }
             }
           })
           .on("broadcast", { event: "game_start" }, ({ payload }) => {
@@ -333,7 +409,7 @@ export function useGameRoom() {
         channelRef.current = channel;
       });
     },
-    [applyPresenceSync, cleanup, publishRoomState, setRoomState]
+    [applyPresenceSync, beginSharedCountdown, cleanup, publishRoomState, setRoomState]
   );
 
   const createRoom = useCallback(
@@ -343,6 +419,7 @@ export function useGameRoom() {
         displayName: hostName,
         isHost: true,
         isReady: true,
+        motionEnabled: false,
         joinedAt: nowIso(),
       };
 
@@ -373,6 +450,7 @@ export function useGameRoom() {
         displayName,
         isHost: false,
         isReady: false,
+        motionEnabled: false,
         joinedAt: nowIso(),
       };
 
@@ -492,13 +570,63 @@ export function useGameRoom() {
 
     const nextRoom = normalizeRoom({
       ...currentRoom,
-      status: "countdown",
-      countdownStartedAt: nowIso(),
+      status: "arming",
+      players: currentRoom.players.map((player) => ({
+        ...player,
+        motionEnabled: false,
+      })),
+      countdownStartedAt: null,
+      roundStartedAt: null,
+      loserId: null,
+      loserName: null,
+      endedAt: null,
     });
 
     setRoomState(nextRoom);
-    await publishRoomState(channel, nextRoom, "game_start");
+    await publishRoomState(channel, nextRoom);
   }, [publishRoomState, setRoomState]);
+
+  const markMotionEnabled = useCallback(async () => {
+    const channel = channelRef.current;
+    const currentRoom = roomRef.current;
+    const localPlayer = localPlayerRef.current;
+
+    if (!channel || !currentRoom || !localPlayer) return;
+
+    const updatedPlayer: RoomPlayer = {
+      ...localPlayer,
+      motionEnabled: true,
+    };
+
+    localPlayerRef.current = updatedPlayer;
+
+    const nextRoom = normalizeRoom({
+      ...currentRoom,
+      status: currentRoom.status === "waiting" ? "arming" : currentRoom.status,
+      players: dedupePlayers([
+        ...currentRoom.players.filter((player) => player.playerId !== updatedPlayer.playerId),
+        updatedPlayer,
+      ]),
+    });
+
+    console.log("[room:%s] motion enabled by %s", nextRoom.roomCode, updatedPlayer.playerId);
+    setRoomState(nextRoom);
+    await channel.track(buildPresencePayload(updatedPlayer));
+
+    if (updatedPlayer.isHost) {
+      const countdownStarted = await beginSharedCountdown(channel, nextRoom);
+      if (!countdownStarted) {
+        await publishRoomState(channel, nextRoom, "motion_ready");
+      }
+    } else {
+      await publishRoomState(channel, nextRoom, "motion_ready");
+      await channel.send({
+        type: "broadcast",
+        event: "room_sync_request",
+        payload: { playerId: updatedPlayer.playerId },
+      });
+    }
+  }, [beginSharedCountdown, publishRoomState, setRoomState]);
 
   const startGame = useCallback(async () => {
     const channel = channelRef.current;
@@ -508,10 +636,17 @@ export function useGameRoom() {
     if (!channel || !currentRoom || !localPlayer) return;
     if (!(localPlayer.isHost || currentRoom.hostId === localPlayer.playerId)) return;
 
+    const countdownStartedMs = currentRoom.countdownStartedAt
+      ? new Date(currentRoom.countdownStartedAt).getTime()
+      : null;
+    const sharedRoundStartedAt = countdownStartedMs && Number.isFinite(countdownStartedMs)
+      ? new Date(countdownStartedMs + COUNTDOWN_SECONDS * 1000).toISOString()
+      : nowIso();
+
     const nextRoom = normalizeRoom({
       ...currentRoom,
       status: "active",
-      roundStartedAt: currentRoom.roundStartedAt ?? nowIso(),
+      roundStartedAt: currentRoom.roundStartedAt ?? sharedRoundStartedAt,
     });
 
     setRoomState(nextRoom);
@@ -591,6 +726,7 @@ export function useGameRoom() {
     updateMode,
     updateDare,
     startCountdown,
+    markMotionEnabled,
     startGame,
     reportLoss,
     leaveRoom,
