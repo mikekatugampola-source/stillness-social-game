@@ -7,11 +7,13 @@ type PresenceMeta = {
   displayName?: string;
   isHost?: boolean;
   isReady?: boolean;
+  motionEnabled?: boolean;
   joinedAt?: string;
   id?: string;
   name?: string;
   is_host?: boolean;
   is_ready?: boolean;
+  motion_enabled?: boolean;
 };
 
 type RoomBroadcastEvent = "room_state" | "room_sync_request" | "game_start" | "game_active" | "game_finished";
@@ -52,6 +54,7 @@ function parsePresencePlayer(meta: PresenceMeta): RoomPlayer | null {
     displayName: meta.displayName ?? meta.name ?? "Player",
     isHost: parseBool(meta.isHost, parseBool(meta.is_host)),
     isReady: parseBool(meta.isReady, parseBool(meta.is_ready)),
+    motionEnabled: parseBool(meta.motionEnabled, parseBool(meta.motion_enabled)),
     joinedAt: meta.joinedAt ?? nowIso(),
   };
 }
@@ -62,6 +65,7 @@ function buildPresencePayload(player: RoomPlayer): PresenceMeta {
     displayName: player.displayName,
     isHost: player.isHost,
     isReady: player.isReady,
+    motionEnabled: player.motionEnabled,
     joinedAt: player.joinedAt,
   };
 }
