@@ -128,6 +128,7 @@ function dedupePlayers(players: RoomPlayer[]): RoomPlayer[] {
 function normalizeRoom(nextRoom: GameRoom): GameRoom {
   const players = dedupePlayers(nextRoom.players);
   const hostId = nextRoom.hostId || players.find((player) => player.isHost)?.playerId || "";
+  const status = normalizeStatus(nextRoom.status);
 
   const countdownStartedAt = nextRoom.countdownStartedAt ?? null;
   // Always prefer an explicit roundStartedAt, but fall back to a deterministic
@@ -138,6 +139,7 @@ function normalizeRoom(nextRoom: GameRoom): GameRoom {
 
   return {
     ...nextRoom,
+    status,
     hostId,
     players: players.map((player) => ({
       ...player,
@@ -163,7 +165,7 @@ function createRoomState(
     roomCode,
     hostId,
     mode,
-    status: "waiting",
+    status: "lobby",
     players,
     loserId: null,
     loserName: null,
@@ -192,6 +194,7 @@ function mergeRoom(
   return normalizeRoom({
     ...baseRoom,
     ...incoming,
+    status: resolveStatus(baseRoom.status, incoming.status),
     players: incoming.players ?? baseRoom.players,
   });
 }
