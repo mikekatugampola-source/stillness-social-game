@@ -541,13 +541,63 @@ export function useGameRoom() {
 
     const nextRoom = normalizeRoom({
       ...currentRoom,
-      status: "countdown",
-      countdownStartedAt: nowIso(),
+      status: "arming",
+      players: currentRoom.players.map((player) => ({
+        ...player,
+        motionEnabled: false,
+      })),
+      countdownStartedAt: null,
+      roundStartedAt: null,
+      loserId: null,
+      loserName: null,
+      endedAt: null,
     });
 
     setRoomState(nextRoom);
-    await publishRoomState(channel, nextRoom, "game_start");
+    await publishRoomState(channel, nextRoom);
   }, [publishRoomState, setRoomState]);
+
+  const markMotionEnabled = useCallback(async () => {
+    const channel = channelRef.current;
+    const currentRoom = roomRef.current;
+    const localPlayer = localPlayerRef.current;
+
+    if (!channel || !currentRoom || !localPlayer) return;
+
+    const updatedPlayer: RoomPlayer = {
+      ...localPlayer,
+      motionEnabled: true,
+    };
+
+    localPlayerRef.current = updatedPlayer;
+
+    const nextRoom = normalizeRoom({
+      ...currentRoom,
+      status: currentRoom.status === "waiting" ? "arming" : currentRoom.status,
+      players: dedupePlayers([
+        ...currentRoom.players.filter((player) => player.playerId !== updatedPlayer.playerId),
+        updatedPlayer,
+      ]),
+    });
+
+    console.log("[room:%s] motion enabled by %s", nextRoom.roomCode, updatedPlayer.playerId);
+    setRoomState(nextRoom);
+    await channel.track(buildPresencePayload(updatedPlayer));
+
+    if (updatedPlayer.isHost) {
+      const countdownStarted = await beginSharedCountdown(channel, nextRoom);
+      if (!countdownStarted) {
+        await publishRoomState(channel, nextRoom, "motion_ready");
+      }
+    } else {
+      await publishRoomState(channel, nextRoom, "motion_ready");
+      await channel.send({
+        type: "broadcast",
+        event: "room_sync_request",
+        payload: { playerId: updatedPlayer.playerId },
+      });
+    }
+  }, [beginSharedCountdown, publishRoomState, setRoomState]);
 
   const startGame = useCallback(async () => {
     const channel = channelRef.current;
