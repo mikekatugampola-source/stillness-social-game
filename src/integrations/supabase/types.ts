@@ -138,6 +138,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      game_server_now: { Args: never; Returns: string }
       join_game_room: {
         Args: {
           p_display_name: string
