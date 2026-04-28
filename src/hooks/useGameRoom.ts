@@ -329,7 +329,7 @@ export function useGameRoom() {
           const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
           return {
             ...player,
-            motionEnabled: Boolean(currentPlayer?.motionEnabled || player.motionEnabled),
+            motionEnabled: Boolean(currentPlayer?.motionEnabled),
           };
         }),
       });
