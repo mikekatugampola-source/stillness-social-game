@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { GameMode, GameRoom, RoomPlayer } from "@/lib/game-types";
+import type { GameMode, GameRoom, GameStatus, RoomPlayer } from "@/lib/game-types";
 
 type PresenceMeta = {
   playerId?: string;
@@ -22,6 +22,28 @@ type RoomChannel = ReturnType<typeof supabase.channel>;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
 const COUNTDOWN_SYNC_DELAY_MS = 1000;
+const PHASE_ORDER: Record<GameStatus, number> = {
+  lobby: 0,
+  arming: 1,
+  countdown: 2,
+  playing: 3,
+  finished: 4,
+};
+
+function normalizeStatus(status: unknown): GameStatus {
+  if (status === "waiting") return "lobby";
+  if (status === "active") return "playing";
+  if (status === "arming" || status === "countdown" || status === "playing" || status === "finished") {
+    return status;
+  }
+  return "lobby";
+}
+
+function resolveStatus(currentStatus: GameStatus | null, incomingStatus: unknown): GameStatus {
+  const incoming = normalizeStatus(incomingStatus);
+  if (!currentStatus) return incoming;
+  return PHASE_ORDER[incoming] >= PHASE_ORDER[currentStatus] ? incoming : currentStatus;
+}
 
 /**
  * Deterministically derive the shared round start timestamp from the shared
