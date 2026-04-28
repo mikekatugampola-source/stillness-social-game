@@ -254,7 +254,13 @@ export function useGameRoom() {
         players: dedupePlayers([
           ...(localPlayer ? [localPlayer] : []),
           ...parsedPlayers,
-        ]),
+        ]).map((player) => {
+          const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
+          return {
+            ...player,
+            motionEnabled: Boolean(currentPlayer?.motionEnabled || player.motionEnabled),
+          };
+        }),
       });
 
       setRoomState(nextRoom);
