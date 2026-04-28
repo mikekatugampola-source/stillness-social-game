@@ -25,7 +25,7 @@ const WaitingRoom = () => {
   }, [room, navigate]);
 
   useEffect(() => {
-    if (room?.status === "countdown") {
+    if (room?.status === "arming" || room?.status === "countdown") {
       navigate("/motion-permission", { replace: true });
     }
   }, [room?.status, navigate]);
