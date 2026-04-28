@@ -690,6 +690,7 @@ export function useGameRoom() {
     updateMode,
     updateDare,
     startCountdown,
+    markMotionEnabled,
     startGame,
     reportLoss,
     leaveRoom,
