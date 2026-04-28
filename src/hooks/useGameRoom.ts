@@ -45,6 +45,17 @@ function resolveStatus(currentStatus: GameStatus | null, incomingStatus: unknown
   return PHASE_ORDER[incoming] >= PHASE_ORDER[currentStatus] ? incoming : currentStatus;
 }
 
+function shouldUseIncomingFinish(currentRoom: GameRoom, incoming: Partial<GameRoom>): boolean {
+  if (!incoming.loserId) return false;
+  if (currentRoom.status !== "finished" || !currentRoom.loserId) return true;
+
+  const currentEndedAt = currentRoom.endedAt ? new Date(currentRoom.endedAt).getTime() : Number.POSITIVE_INFINITY;
+  const incomingEndedAt = incoming.endedAt ? new Date(incoming.endedAt).getTime() : Number.POSITIVE_INFINITY;
+
+  if (incomingEndedAt !== currentEndedAt) return incomingEndedAt < currentEndedAt;
+  return incoming.loserId.localeCompare(currentRoom.loserId) < 0;
+}
+
 /**
  * Deterministically derive the shared round start timestamp from the shared
  * countdown start timestamp. Every player has `countdownStartedAt` (broadcast
