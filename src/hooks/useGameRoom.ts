@@ -22,8 +22,9 @@ const db = supabase as any;
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const COUNTDOWN_SECONDS = 5;
 const SUPABASE_URL_DEBUG = (import.meta as any).env?.VITE_SUPABASE_URL ?? "(unknown)";
+const SUPABASE_PROJECT_ID_DEBUG = (import.meta as any).env?.VITE_SUPABASE_PROJECT_ID ?? "(unknown)";
 // eslint-disable-next-line no-console
-console.info("[room] backend env", SUPABASE_URL_DEBUG);
+console.info("[room-debug] backend env", { url: SUPABASE_URL_DEBUG, projectId: SUPABASE_PROJECT_ID_DEBUG });
 const PHASE_ORDER: Record<GameStatus, number> = {
   lobby: 0,
   arming: 1,
@@ -88,6 +89,14 @@ function nowIso(): string {
 
 function normalizeRoomCode(code: string): string {
   return code.replace(/\s+/g, "").toUpperCase();
+}
+
+function getBackendDebugInfo() {
+  return {
+    url: SUPABASE_URL_DEBUG,
+    projectId: SUPABASE_PROJECT_ID_DEBUG,
+    appOrigin: typeof window !== "undefined" ? window.location.origin : "(unknown)",
+  };
 }
 
 function sortPlayers(players: RoomPlayer[]): RoomPlayer[] {
@@ -240,16 +249,23 @@ export function useGameRoom() {
 
   const fetchRoomState = useCallback(
     async (roomCode: string) => {
+      const normalizedCode = normalizeRoomCode(roomCode);
       const { data, error: fetchError } = await db
         .from("game_rooms")
         .select("*")
-        .eq("room_code", normalizeRoomCode(roomCode))
+        .eq("room_code", normalizedCode)
         .maybeSingle();
 
       if (fetchError) {
-        console.warn("[room:%s] fetch failed", roomCode, fetchError);
+        console.warn("[room-debug] fetch failed", { roomCode: normalizedCode, backend: getBackendDebugInfo(), error: fetchError });
         return null;
       }
+
+      console.info("[room-debug] fetch result", {
+        roomCode: normalizedCode,
+        backend: getBackendDebugInfo(),
+        rowCount: data ? 1 : 0,
+      });
 
       return applyRoomRow(data as GameRoomRow | null);
     },
@@ -324,21 +340,41 @@ export function useGameRoom() {
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const roomCode = generateCode();
-        console.info("[room] create attempt", { attempt, roomCode, env: SUPABASE_URL_DEBUG });
-        const createdRoom = await callRoomAction("create_game_room", {
+        console.info("[room-debug] create write", { attempt, roomCode, backend: getBackendDebugInfo() });
+
+        const { data, error: createError } = await db.rpc("create_game_room", {
           p_room_code: roomCode,
           p_host_id: hostPlayer.playerId,
           p_host_name: hostPlayer.displayName,
           p_mode: mode,
         });
 
+        if (createError) {
+          const raw = `${createError.message ?? ""}`;
+          console.warn("[room-debug] create insert failed", {
+            roomCode,
+            backend: getBackendDebugInfo(),
+            error: createError,
+          });
+          if (raw.includes("ROOM_CODE_EXISTS") || raw.includes("duplicate key")) continue;
+          setError(createError.message ?? "Could not create room");
+          return null;
+        }
+
+        console.info("[room-debug] create insert succeeded", { roomCode, backend: getBackendDebugInfo(), returnedRow: Boolean(data) });
+        void syncServerClock();
+        const createdRoom = applyRoomRow(data as GameRoomRow | null);
+
         if (createdRoom) {
           // Verify persistence by re-reading immediately
           const verified = await fetchRoomState(createdRoom.roomCode);
           if (!verified) {
-            console.warn("[room] created room not visible on re-read", createdRoom.roomCode);
+            console.warn("[room-debug] created room not visible on re-read", {
+              roomCode: createdRoom.roomCode,
+              backend: getBackendDebugInfo(),
+            });
           } else {
-            console.info("[room] created and verified", verified.roomCode);
+            console.info("[room-debug] created and verified", { roomCode: verified.roomCode, backend: getBackendDebugInfo() });
           }
           void subscribeToRoom(createdRoom.roomCode);
           return { room: createdRoom, playerId: hostPlayer.playerId };
@@ -348,7 +384,7 @@ export function useGameRoom() {
       console.error("[room] create failed after retries");
       return null;
     },
-    [callRoomAction, fetchRoomState, subscribeToRoom, syncServerClock]
+    [applyRoomRow, fetchRoomState, subscribeToRoom, syncServerClock]
   );
 
   const joinRoom = useCallback(
@@ -371,7 +407,7 @@ export function useGameRoom() {
       setError(null);
       await syncServerClock();
 
-      console.info("[room] join lookup", { roomCode: normalizedCode, env: SUPABASE_URL_DEBUG });
+      console.info("[room-debug] join query", { roomCode: normalizedCode, backend: getBackendDebugInfo() });
 
       // Pre-flight: confirm room exists on this backend (helps distinguish env mismatch vs missing row)
       const { data: preflight, error: preflightError } = await db
@@ -381,13 +417,13 @@ export function useGameRoom() {
         .maybeSingle();
 
       if (preflightError) {
-        console.warn("[room] join preflight error", preflightError);
+        console.warn("[room-debug] join preflight error", { roomCode: normalizedCode, backend: getBackendDebugInfo(), error: preflightError });
       } else if (!preflight) {
-        console.warn("[room] join preflight: no row for", normalizedCode, "in", SUPABASE_URL_DEBUG);
+        console.warn("[room-debug] join preflight returned 0 rows", { roomCode: normalizedCode, backend: getBackendDebugInfo() });
         setError("Room not found");
         return { ok: false as const, errorCode: "ROOM_NOT_FOUND" as const, message: "Room not found" };
       } else {
-        console.info("[room] join preflight: found", preflight);
+        console.info("[room-debug] join preflight found row", { roomCode: normalizedCode, backend: getBackendDebugInfo(), row: preflight });
       }
 
       const { data, error: rpcError } = await db.rpc("join_game_room", {
@@ -407,16 +443,19 @@ export function useGameRoom() {
           errorCode = "GAME_ALREADY_STARTED";
           message = "Game already started";
         }
-        console.warn("[room] join failed", rpcError);
+        console.warn("[room-debug] join failed", { roomCode: normalizedCode, backend: getBackendDebugInfo(), error: rpcError });
         setError(message);
         return { ok: false as const, errorCode, message };
       }
 
       const joinedRoom = applyRoomRow(data as GameRoomRow | null);
       if (!joinedRoom) {
+        console.warn("[room-debug] join returned no room row", { roomCode: normalizedCode, backend: getBackendDebugInfo() });
         setError("Couldn't join. Try again.");
         return { ok: false as const, errorCode: "NETWORK" as const, message: "Couldn't join. Try again." };
       }
+
+      console.info("[room-debug] join succeeded", { roomCode: joinedRoom.roomCode, backend: getBackendDebugInfo(), players: joinedRoom.players.length });
 
       localPlayerRef.current = joinedPlayer;
       setPlayerId(joinedPlayer.playerId);
