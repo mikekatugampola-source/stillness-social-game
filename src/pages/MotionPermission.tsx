@@ -48,10 +48,6 @@ const MotionPermission = () => {
       return;
     }
 
-    if (!needsPermissionRequest()) {
-      setStatus("granted");
-      void confirmMotionEnabled();
-    }
   }, [confirmMotionEnabled, navigate, room]);
 
   const handleEnable = useCallback(async () => {
