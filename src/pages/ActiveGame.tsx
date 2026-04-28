@@ -7,6 +7,8 @@ import { useGameRoomContext } from "@/context/GameRoomContext";
 import { triggerGameOverFeedback } from "@/lib/gameOverFeedback";
 import { KeepAwake } from "@capacitor-community/keep-awake";
 
+const SETTLE_DURATION_MS = 2750;
+
 const ActiveGame = () => {
   const navigate = useNavigate();
   const { room, playerId, players, reportLoss } = useGameRoomContext();
@@ -17,8 +19,6 @@ const ActiveGame = () => {
   const [settleProgress, setSettleProgress] = useState(0);
   const [movementDetected, setMovementDetected] = useState(false);
   const hasTriggeredFeedback = useRef(false);
-  // 2.5–3.0s settle to give time to place phone down
-  const settleDurationRef = useRef(2500 + Math.random() * 500);
 
   const me = players.find((p) => p.playerId === playerId);
   const playerName = me?.displayName ?? "You";
@@ -89,26 +89,21 @@ const ActiveGame = () => {
       navigate("/", { replace: true });
       return;
     }
-    const duration = settleDurationRef.current;
-    const settleStart = Date.now();
+    if (!roundStartMs) return;
 
-    const progressInterval = setInterval(() => {
-      const pct = Math.min(1, (Date.now() - settleStart) / duration);
+    const tick = () => {
+      const pct = Math.min(1, Math.max(0, (Date.now() - roundStartMs) / SETTLE_DURATION_MS));
       setSettleProgress(pct);
-    }, 50);
-
-    const timer = setTimeout(() => {
-      clearInterval(progressInterval);
-      setSettleProgress(1);
-      setSettling(false);
-      setGameActive(true);
-    }, duration);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(progressInterval);
+      setSettling(pct < 1);
+      setGameActive(pct >= 1 && room.status === "active");
     };
-  }, [room, navigate]);
+
+    tick();
+    const interval = setInterval(tick, 50);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [room, navigate, roundStartMs]);
 
   // Timer — driven by the shared round start timestamp so every player sees the same elapsed time.
   useEffect(() => {
