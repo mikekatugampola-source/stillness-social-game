@@ -178,20 +178,28 @@ function allPlayersMotionEnabled(room: GameRoom): boolean {
   return room.players.length >= 2 && room.players.every((player) => player.motionEnabled);
 }
 
-function mergeMotionReadyRoom(currentRoom: GameRoom | null, incoming: Partial<GameRoom>): GameRoom | null {
-  const mergedRoom = mergeRoom(currentRoom, incoming);
-  if (!mergedRoom || !currentRoom || !incoming.players) return mergedRoom;
+/**
+ * Apply a per-player motion-ready signal as a DELTA. We never let a player's
+ * stale view of the room overwrite authoritative fields like `status`,
+ * `countdownStartedAt`, or `roundStartedAt` — only the player's own
+ * `motionEnabled` flag is updated.
+ */
+function applyMotionReadyDelta(
+  currentRoom: GameRoom | null,
+  signal: { playerId: string; motionEnabled: boolean }
+): GameRoom | null {
+  if (!currentRoom) return null;
+
+  const hasPlayer = currentRoom.players.some((player) => player.playerId === signal.playerId);
+  if (!hasPlayer) return currentRoom;
 
   return normalizeRoom({
-    ...mergedRoom,
-    players: mergedRoom.players.map((player) => {
-      const currentPlayer = currentRoom.players.find((item) => item.playerId === player.playerId);
-      const incomingPlayer = incoming.players?.find((item) => item.playerId === player.playerId);
-      return {
-        ...player,
-        motionEnabled: Boolean(currentPlayer?.motionEnabled || incomingPlayer?.motionEnabled || player.motionEnabled),
-      };
-    }),
+    ...currentRoom,
+    players: currentRoom.players.map((player) =>
+      player.playerId === signal.playerId
+        ? { ...player, motionEnabled: signal.motionEnabled || player.motionEnabled }
+        : player
+    ),
   });
 }
 
