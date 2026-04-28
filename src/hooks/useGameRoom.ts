@@ -407,7 +407,7 @@ export function useGameRoom() {
       setError(null);
       await syncServerClock();
 
-      console.info("[room] join lookup", { roomCode: normalizedCode, env: SUPABASE_URL_DEBUG });
+      console.info("[room-debug] join query", { roomCode: normalizedCode, backend: getBackendDebugInfo() });
 
       // Pre-flight: confirm room exists on this backend (helps distinguish env mismatch vs missing row)
       const { data: preflight, error: preflightError } = await db
@@ -417,13 +417,13 @@ export function useGameRoom() {
         .maybeSingle();
 
       if (preflightError) {
-        console.warn("[room] join preflight error", preflightError);
+        console.warn("[room-debug] join preflight error", { roomCode: normalizedCode, backend: getBackendDebugInfo(), error: preflightError });
       } else if (!preflight) {
-        console.warn("[room] join preflight: no row for", normalizedCode, "in", SUPABASE_URL_DEBUG);
+        console.warn("[room-debug] join preflight returned 0 rows", { roomCode: normalizedCode, backend: getBackendDebugInfo() });
         setError("Room not found");
         return { ok: false as const, errorCode: "ROOM_NOT_FOUND" as const, message: "Room not found" };
       } else {
-        console.info("[room] join preflight: found", preflight);
+        console.info("[room-debug] join preflight found row", { roomCode: normalizedCode, backend: getBackendDebugInfo(), row: preflight });
       }
 
       const { data, error: rpcError } = await db.rpc("join_game_room", {
@@ -443,16 +443,19 @@ export function useGameRoom() {
           errorCode = "GAME_ALREADY_STARTED";
           message = "Game already started";
         }
-        console.warn("[room] join failed", rpcError);
+        console.warn("[room-debug] join failed", { roomCode: normalizedCode, backend: getBackendDebugInfo(), error: rpcError });
         setError(message);
         return { ok: false as const, errorCode, message };
       }
 
       const joinedRoom = applyRoomRow(data as GameRoomRow | null);
       if (!joinedRoom) {
+        console.warn("[room-debug] join returned no room row", { roomCode: normalizedCode, backend: getBackendDebugInfo() });
         setError("Couldn't join. Try again.");
         return { ok: false as const, errorCode: "NETWORK" as const, message: "Couldn't join. Try again." };
       }
+
+      console.info("[room-debug] join succeeded", { roomCode: joinedRoom.roomCode, backend: getBackendDebugInfo(), players: joinedRoom.players.length });
 
       localPlayerRef.current = joinedPlayer;
       setPlayerId(joinedPlayer.playerId);
