@@ -249,16 +249,23 @@ export function useGameRoom() {
 
   const fetchRoomState = useCallback(
     async (roomCode: string) => {
+      const normalizedCode = normalizeRoomCode(roomCode);
       const { data, error: fetchError } = await db
         .from("game_rooms")
         .select("*")
-        .eq("room_code", normalizeRoomCode(roomCode))
+        .eq("room_code", normalizedCode)
         .maybeSingle();
 
       if (fetchError) {
-        console.warn("[room:%s] fetch failed", roomCode, fetchError);
+        console.warn("[room-debug] fetch failed", { roomCode: normalizedCode, backend: getBackendDebugInfo(), error: fetchError });
         return null;
       }
+
+      console.info("[room-debug] fetch result", {
+        roomCode: normalizedCode,
+        backend: getBackendDebugInfo(),
+        rowCount: data ? 1 : 0,
+      });
 
       return applyRoomRow(data as GameRoomRow | null);
     },
