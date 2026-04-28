@@ -416,7 +416,7 @@ export function useGameRoom() {
           .on("broadcast", { event: "game_active" }, ({ payload }) => {
             const mergedRoom = mergeRoom(roomRef.current, {
               ...(payload as Partial<GameRoom>),
-              status: "active",
+              status: "playing",
             });
 
             if (mergedRoom) {
@@ -676,7 +676,7 @@ export function useGameRoom() {
 
     const nextRoom = normalizeRoom({
       ...currentRoom,
-      status: currentRoom.status === "waiting" ? "arming" : currentRoom.status,
+      status: currentRoom.status === "lobby" ? "arming" : currentRoom.status,
       players: dedupePlayers([
         ...currentRoom.players.filter((player) => player.playerId !== updatedPlayer.playerId),
         updatedPlayer,
@@ -727,7 +727,7 @@ export function useGameRoom() {
 
     const nextRoom = normalizeRoom({
       ...currentRoom,
-      status: "active",
+      status: "playing",
       roundStartedAt: currentRoom.roundStartedAt ?? sharedRoundStartedAt,
     });
 
