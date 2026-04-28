@@ -100,7 +100,7 @@ const ResultScreen = () => {
               className="text-foreground font-bold tracking-tight leading-none text-center"
               style={{ fontSize: "clamp(2.5rem, 10vw, 4.5rem)" }}
             >
-              {winnerTitle}
+              {isDareMode ? "You won" : winnerTitle}
             </motion.h1>
 
             <motion.p
@@ -110,7 +110,7 @@ const ResultScreen = () => {
               className="text-foreground text-center font-semibold"
               style={{ fontSize: "clamp(1.25rem, 5vw, 1.75rem)" }}
             >
-              Film this. Post it.
+              {isDareMode ? "Film the loser doing the dare." : "Film this. Post it."}
             </motion.p>
 
             {dareText && (
@@ -130,17 +130,27 @@ const ResultScreen = () => {
               </motion.div>
             )}
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              transition={{ delay: 0.5 }}
-              className="text-foreground text-center font-light"
-              style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
-            >
-              Don't let them off easy.
-            </motion.p>
-
-
+            {isDareMode ? (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                transition={{ delay: 0.5 }}
+                className="text-foreground text-center font-light"
+                style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
+              >
+                Post it and tag @donttouchapp.
+              </motion.p>
+            ) : (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                transition={{ delay: 0.5 }}
+                className="text-foreground text-center font-light"
+                style={{ fontSize: "clamp(0.875rem, 3.5vw, 1.1rem)" }}
+              >
+                Don't let them off easy.
+              </motion.p>
+            )}
           </>
         )}
 
@@ -152,15 +162,37 @@ const ResultScreen = () => {
           transition={{ delay: 0.4 }}
           className="flex flex-col items-center gap-3 w-full"
         >
-          <Button onClick={handleOpenTikTok} size="lg" className="w-full max-w-[280px]">
-            Post this
-          </Button>
-          <Button variant="outline" onClick={handleCopyCaption} size="sm" className="w-full max-w-[280px]">
-            Copy Caption
-          </Button>
-          <Button variant="ghost" onClick={handlePlayAgain} size="sm" className="w-full max-w-[280px]">
-            Play Again
-          </Button>
+          {isDareMode ? (
+            isLoser ? (
+              <Button onClick={handlePlayAgain} size="lg" className="w-full max-w-[280px]">
+                Play Again
+              </Button>
+            ) : (
+              <>
+                <Button onClick={handleOpenTikTok} size="lg" className="w-full max-w-[280px]">
+                  Share
+                </Button>
+                <Button variant="outline" onClick={handleCopyCaption} size="sm" className="w-full max-w-[280px]">
+                  Copy Caption
+                </Button>
+                <Button variant="ghost" onClick={handlePlayAgain} size="sm" className="w-full max-w-[280px]">
+                  Play Again
+                </Button>
+              </>
+            )
+          ) : (
+            <>
+              <Button onClick={handleOpenTikTok} size="lg" className="w-full max-w-[280px]">
+                Post this
+              </Button>
+              <Button variant="outline" onClick={handleCopyCaption} size="sm" className="w-full max-w-[280px]">
+                Copy Caption
+              </Button>
+              <Button variant="ghost" onClick={handlePlayAgain} size="sm" className="w-full max-w-[280px]">
+                Play Again
+              </Button>
+            </>
+          )}
         </motion.div>
 
         <motion.p
