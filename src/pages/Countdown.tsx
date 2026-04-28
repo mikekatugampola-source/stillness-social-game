@@ -6,21 +6,18 @@ import { playCountdownTick, playGameStartSound } from "@/lib/audioManager";
 
 const COUNTDOWN_SECONDS = 5;
 
-function getRemainingCount(countdownStartedAt: string | null): number {
+function getRemainingCount(countdownStartedAt: string | null, nowMs: number): number {
   if (!countdownStartedAt) return COUNTDOWN_SECONDS;
-  const elapsedSeconds = Math.floor((Date.now() - new Date(countdownStartedAt).getTime()) / 1000);
+  const elapsedSeconds = Math.floor((nowMs - new Date(countdownStartedAt).getTime()) / 1000);
   return Math.max(0, Math.min(COUNTDOWN_SECONDS, COUNTDOWN_SECONDS - elapsedSeconds));
 }
 
 const Countdown = () => {
   const navigate = useNavigate();
-  const { room, playerId, startGame } = useGameRoomContext();
-  const [count, setCount] = useState(() => getRemainingCount(room?.countdownStartedAt ?? null));
+  const { room, startGame, getSyncedNow } = useGameRoomContext();
+  const [count, setCount] = useState(() => getRemainingCount(room?.countdownStartedAt ?? null, getSyncedNow()));
   const hasStartedGame = useRef(false);
   const lastTickedCount = useRef<number | null>(null);
-
-  const isHost =
-    room?.players.some((player) => player.playerId === playerId && player.isHost) ?? false;
 
   // Redirect if no room
   useEffect(() => {
@@ -34,7 +31,7 @@ const Countdown = () => {
     if (room?.status !== "countdown") return;
 
     const tick = () => {
-      const remaining = getRemainingCount(room.countdownStartedAt);
+      const remaining = getRemainingCount(room.countdownStartedAt, getSyncedNow());
       setCount(remaining);
 
       // Play tick sound on each new number
@@ -47,14 +44,14 @@ const Countdown = () => {
     tick();
     const timer = window.setInterval(tick, 100);
     return () => window.clearInterval(timer);
-  }, [room?.countdownStartedAt, room?.status]);
+  }, [getSyncedNow, room?.countdownStartedAt, room?.status]);
 
-  // Host starts game when countdown reaches 0
+  // Any client may request activation; the shared room state only changes when the backend timestamp is ready.
   useEffect(() => {
-    if (count > 0 || !isHost || hasStartedGame.current) return;
+    if (count > 0 || room?.status !== "countdown" || hasStartedGame.current) return;
     hasStartedGame.current = true;
     void startGame();
-  }, [count, isHost, startGame]);
+  }, [count, room?.status, startGame]);
 
   // All players navigate when shared phase becomes playing
   useEffect(() => {
