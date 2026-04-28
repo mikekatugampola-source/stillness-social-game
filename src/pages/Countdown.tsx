@@ -58,9 +58,13 @@ const Countdown = () => {
 
   // All players navigate when shared phase becomes playing
   useEffect(() => {
-    if (room?.status === "playing") {
+    if (room?.status === "arming") {
+      navigate("/motion-permission", { replace: true });
+    } else if (room?.status === "playing") {
       void playGameStartSound("room-status-active");
       navigate("/game", { replace: true });
+    } else if (room?.status === "finished") {
+      navigate("/result", { replace: true });
     }
   }, [room?.status, navigate]);
 

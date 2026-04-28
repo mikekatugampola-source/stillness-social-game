@@ -89,6 +89,14 @@ const ActiveGame = () => {
       navigate("/", { replace: true });
       return;
     }
+    if (room.status === "arming") {
+      navigate("/motion-permission", { replace: true });
+      return;
+    }
+    if (room.status === "countdown") {
+      navigate("/countdown", { replace: true });
+      return;
+    }
     if (!roundStartMs) return;
 
     const tick = () => {

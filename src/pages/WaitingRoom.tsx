@@ -27,6 +27,10 @@ const WaitingRoom = () => {
   useEffect(() => {
     if (room?.status === "arming" || room?.status === "countdown") {
       navigate("/motion-permission", { replace: true });
+    } else if (room?.status === "playing") {
+      navigate("/game", { replace: true });
+    } else if (room?.status === "finished") {
+      navigate("/result", { replace: true });
     }
   }, [room?.status, navigate]);
 
